@@ -24,4 +24,17 @@ class AdFeedViewModelTest {
                 ad.tags.any { it.contains("backpack", ignoreCase = true) }
         })
     }
+
+    @Test
+    fun trackAdImpressionUpdatesExposureStats() {
+        val viewModel = AdFeedViewModel()
+        val ad = viewModel.uiState.value.ads.first()
+
+        viewModel.trackAdImpression(ad)
+        viewModel.trackAdImpression(ad)
+
+        val state = viewModel.uiState.value
+        assertEquals(2, state.totalExposureCount)
+        assertEquals(2, state.exposureCountsByAdId[ad.id])
+    }
 }

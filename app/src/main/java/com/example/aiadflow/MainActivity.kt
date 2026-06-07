@@ -89,27 +89,27 @@ private fun HomeScreen(
             contentPadding = PaddingValues(bottom = AppSpacing.Section),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)
         ) {
-            item {
+            item(key = "status-bars-spacer") {
                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             }
-            item {
+            item(key = "header") {
                 HeaderBar()
             }
-            item {
+            item(key = "channel-tabs") {
                 ChannelTabs(
                     channels = uiState.channels,
                     selectedChannel = uiState.selectedChannel,
                     onChannelSelected = onChannelSelected
                 )
             }
-            item {
+            item(key = "search-bar") {
                 SearchBar(
                     query = uiState.searchText,
                     onQueryChange = onSearchChange
                 )
             }
             if (uiState.ads.isEmpty()) {
-                item {
+                item(key = "empty-feed") {
                     EmptyFeed()
                 }
             } else {

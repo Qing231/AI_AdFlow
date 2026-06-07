@@ -24,6 +24,10 @@ data class AdFeedUiState(
     val searchText: String = "",
     /** 根据频道和搜索词过滤后的广告列表。 */
     val ads: List<AdItem> = emptyList(),
+    /** 当前会话内累计记录的广告曝光次数。 */
+    val totalExposureCount: Int = 0,
+    /** 当前会话内按广告 id 聚合的曝光次数。 */
+    val exposureCountsByAdId: Map<Long, Int> = emptyMap(),
     /** 是否正在加载数据，预留给后续真实接口接入。 */
     val isLoading: Boolean = false
 )
@@ -79,6 +83,14 @@ class AdFeedViewModel(
     /** 记录广告曝光事件。 */
     fun trackAdImpression(ad: AdItem) {
         track(ad, "impression")
+        _uiState.update { current ->
+            current.copy(
+                totalExposureCount = current.totalExposureCount + 1,
+                exposureCountsByAdId = current.exposureCountsByAdId + (
+                    ad.id to ((current.exposureCountsByAdId[ad.id] ?: 0) + 1)
+                )
+            )
+        }
     }
 
     /** 记录广告点击事件。 */
