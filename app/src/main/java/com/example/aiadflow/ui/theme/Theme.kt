@@ -46,6 +46,8 @@ object AppSpacing {
     val SearchHeight = 56.dp
     /** 大图和视频广告的媒体区域高度。 */
     val AdMediaHeight = 168.dp
+    /** 视频广告封面区域高度。 */
+    val VideoMediaHeight = 196.dp
     /** 大图广告的主视觉区域高度。 */
     val LargeImageMediaHeight = 220.dp
     /** 小图和图文广告的媒体区域高度。 */
