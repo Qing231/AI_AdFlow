@@ -52,13 +52,23 @@ class AdFeedViewModel(
     val uiState: StateFlow<AdFeedUiState> = _uiState.asStateFlow()
 
     /** 切换频道，并按当前搜索词刷新广告列表。 */
-    fun selectChannel(channel: Channel?) {
+    fun switchChannel(channel: Channel?) {
         _uiState.update { current ->
+            val nextChannel = channel?.takeIf { it in current.channels }
+            if (nextChannel == current.selectedChannel) {
+                return@update current
+            }
+
             current.copy(
-                selectedChannel = channel,
-                ads = repository.getAds(channel, current.searchText)
+                selectedChannel = nextChannel,
+                ads = repository.getAds(nextChannel, current.searchText)
             )
         }
+    }
+
+    /** Backward-compatible alias for existing callers. */
+    fun selectChannel(channel: Channel?) {
+        switchChannel(channel)
     }
 
     /** 更新搜索框文本。 */

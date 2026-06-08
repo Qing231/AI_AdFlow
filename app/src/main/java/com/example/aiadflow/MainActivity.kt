@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
 
                 HomeScreen(
                     uiState = uiState,
-                    onChannelSelected = viewModel::selectChannel,
+                    onChannelSelected = viewModel::switchChannel,
                     onSearchChange = viewModel::updateSearchText,
                     onAdClick = viewModel::trackAdClick
                 )
