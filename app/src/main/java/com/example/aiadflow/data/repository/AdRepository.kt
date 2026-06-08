@@ -14,6 +14,9 @@ class AdRepository(
     /** 广告数据来源，当前默认使用本地 mock provider。 */
     private val adProvider: MockAdProvider = MockAdProvider
 ) {
+    private val keywordSeparator = Regex("[\\s,，、]+")
+    private val channelCache = mutableMapOf<Channel?, List<AdItem>>()
+
     /** 内存中的埋点事件列表，便于开发阶段验证点击和曝光行为。 */
     private val trackedEvents = mutableListOf<TrackEvent>()
 
@@ -29,17 +32,44 @@ class AdRepository(
         channel: Channel? = null,
         query: String = ""
     ): List<AdItem> {
-        val normalizedQuery = query.trim()
+        val keywords = normalizeKeywords(query)
+        val channelAds = getCachedAds(channel)
 
-        return adProvider.ads()
-            .filter { channel == null || it.channel == channel }
-            .filter { ad ->
-                normalizedQuery.isEmpty() ||
-                    ad.brandName.contains(normalizedQuery, ignoreCase = true) ||
-                    ad.title.contains(normalizedQuery, ignoreCase = true) ||
-                    ad.summary.contains(normalizedQuery, ignoreCase = true) ||
-                    ad.tags.any { it.contains(normalizedQuery, ignoreCase = true) }
+        if (keywords.isEmpty()) {
+            return channelAds
+        }
+
+        return channelAds.filter { ad -> ad.matchesKeywords(keywords) }
+    }
+
+    private fun normalizeKeywords(query: String): List<String> {
+        return query
+            .trim()
+            .split(keywordSeparator)
+            .filter { it.isNotBlank() }
+    }
+
+    private fun AdItem.matchesKeywords(keywords: List<String>): Boolean {
+        return keywords.all { keyword ->
+            brandName.contains(keyword, ignoreCase = true) ||
+                title.contains(keyword, ignoreCase = true) ||
+                summary.contains(keyword, ignoreCase = true) ||
+                tags.any { it.contains(keyword, ignoreCase = true) }
+        }
+    }
+
+    private fun getCachedAds(channel: Channel?): List<AdItem> {
+        return channelCache.getOrPut(channel) {
+            val allAds = channelCache.getOrPut(null) {
+                adProvider.ads()
             }
+
+            if (channel == null) {
+                allAds
+            } else {
+                allAds.filter { it.channel == channel }
+            }
+        }
     }
 
     /** 记录一条广告行为事件。 */
