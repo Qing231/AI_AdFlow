@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import com.example.aiadflow.data.model.AdItem
@@ -399,7 +403,8 @@ private fun AdCard(
             AdType.SmallImage -> {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.Medium)
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.Medium),
+                    verticalAlignment = Alignment.Top
                 ) {
                     AdMediaBlock(
                         ad = ad,
@@ -443,7 +448,9 @@ private fun AdCard(
                 Text(
                     text = ad.summary,
                     color = AppColors.TextSecondary,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
                 TagRow(
                     tags = ad.tags,
@@ -538,7 +545,9 @@ private fun AdSummaryContent(
             Text(
                 text = ad.title,
                 color = AppColors.TextPrimary,
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             AdSummaryHeader(ad = ad, showTitle = false, showChannelInline = true)
         } else {
@@ -547,7 +556,9 @@ private fun AdSummaryContent(
         Text(
             text = ad.summary,
             color = AppColors.TextSecondary,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
         TagRow(
             tags = ad.tags,
@@ -571,13 +582,17 @@ private fun AdSummaryHeader(
             Text(
                 text = ad.brandName,
                 color = AppColors.TextSecondary,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (showTitle) {
                 Text(
                     text = ad.title,
                     color = AppColors.TextPrimary,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -601,19 +616,21 @@ private fun AdActionRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        ActionChip(
-            text = if (liked) "\u5df2\u70b9\u8d5e" else "\u70b9\u8d5e",
-            selected = liked,
-            onClick = onLikeClick
-        )
-        ActionChip(
-            text = if (collected) "\u5df2\u6536\u85cf" else "\u6536\u85cf",
-            selected = collected,
-            onClick = onCollectClick
-        )
-        Spacer(modifier = Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)) {
+            ActionChip(
+                text = if (liked) "\u5df2\u70b9\u8d5e" else "\u70b9\u8d5e",
+                selected = liked,
+                onClick = onLikeClick
+            )
+            ActionChip(
+                text = if (collected) "\u5df2\u6536\u85cf" else "\u6536\u85cf",
+                selected = collected,
+                onClick = onCollectClick
+            )
+        }
         ActionChip(
             text = "\u67e5\u770b",
             selected = true,
@@ -622,17 +639,20 @@ private fun AdActionRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TagRow(
     tags: List<String>,
     selectedTag: String?,
     onTagClick: (String) -> Unit
 ) {
-    Row(
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small),
+        verticalArrangement = Arrangement.spacedBy(AppSpacing.Small),
+        maxLines = 2
     ) {
-        tags.take(3).forEach { tag ->
+        tags.forEach { tag ->
             val selected = tag.equals(selectedTag, ignoreCase = true)
             val backgroundColor by animateColorAsState(
                 targetValue = if (selected) AppColors.Primary else AppColors.PageBackground,
@@ -656,6 +676,7 @@ private fun TagRow(
                         shape = AppRadius.Full
                     )
                     .clickable { onTagClick(tag) }
+                    .widthIn(max = AppSpacing.TagMaxWidth)
                     .padding(
                         horizontal = AppSpacing.Small,
                         vertical = AppSpacing.TagVertical
@@ -664,6 +685,8 @@ private fun TagRow(
                 Text(
                     text = "#$tag",
                     color = textColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                     )

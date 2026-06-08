@@ -69,12 +69,13 @@ object AppSpacing {
     /** 图文广告的图片区域高度。 */
     val ImageTextMediaHeight = 144.dp
     /** 小图广告左侧缩略图宽度。 */
-    val SmallImageMediaWidth = 112.dp
+    val SmallImageMediaWidth = 128.dp
     /** 视频播放入口尺寸。 */
     val PlayButton = 56.dp
     /** 标签 chip 的垂直内边距。 */
     val TagVertical = 6.dp
     val TagBorderWidth = 1.dp
+    val TagMaxWidth = 132.dp
     /** 操作按钮高度。 */
     val ActionHeight = 36.dp
     /** 空状态卡片高度。 */
