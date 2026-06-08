@@ -1,8 +1,14 @@
 package com.example.aiadflow
 
 import android.os.Bundle
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -72,24 +78,38 @@ class MainActivity : ComponentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
                 var selectedAd by remember { mutableStateOf<AdItem?>(null) }
 
-                val detailAd = selectedAd
-                if (detailAd == null) {
-                    HomeScreen(
-                        uiState = uiState,
-                        onChannelSelected = viewModel::switchChannel,
-                        onSearchChange = viewModel::updateSearchText,
-                        onTagSelected = viewModel::selectTag,
-                        onClearFilters = viewModel::clearFilters,
-                        onAdClick = { ad ->
-                            viewModel.trackAdClick(ad)
-                            selectedAd = ad
+                AnimatedContent(
+                    targetState = selectedAd,
+                    label = "adDetailTransition",
+                    transitionSpec = {
+                        val goingToDetail = initialState == null && targetState != null
+                        if (goingToDetail) {
+                            (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
+                                (slideOutHorizontally { -it / 4 } + fadeOut())
+                        } else {
+                            (slideInHorizontally { -it / 4 } + fadeIn()) togetherWith
+                                (slideOutHorizontally { it / 3 } + fadeOut())
                         }
-                    )
-                } else {
-                    AdDetailScreen(
-                        ad = detailAd,
-                        onBackClick = { selectedAd = null }
-                    )
+                    }
+                ) { detailAd ->
+                    if (detailAd == null) {
+                        HomeScreen(
+                            uiState = uiState,
+                            onChannelSelected = viewModel::switchChannel,
+                            onSearchChange = viewModel::updateSearchText,
+                            onTagSelected = viewModel::selectTag,
+                            onClearFilters = viewModel::clearFilters,
+                            onAdClick = { ad ->
+                                viewModel.trackAdClick(ad)
+                                selectedAd = ad
+                            }
+                        )
+                    } else {
+                        AdDetailScreen(
+                            ad = detailAd,
+                            onBackClick = { selectedAd = null }
+                        )
+                    }
                 }
             }
         }
@@ -838,36 +858,53 @@ private fun HomeScreenPreview() {
                 }
         }
 
-        selectedAd?.let { ad ->
-            AdDetailScreen(
-                ad = ad,
-                onBackClick = { selectedAd = null }
-            )
-        } ?: HomeScreen(
-            uiState = AdFeedUiState(
-                channels = Channel.entries,
-                selectedChannel = selectedChannel,
-                searchText = searchText,
-                selectedTag = selectedTag,
-                ads = visibleAds
-            ),
-            onChannelSelected = { selectedChannel = it },
-            onSearchChange = { searchText = it },
-            onTagSelected = { tag ->
-                selectedTag = tag
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let { nextTag ->
-                        if (nextTag.equals(selectedTag, ignoreCase = true)) null else nextTag
-                    }
-            },
-            onClearFilters = {
-                selectedChannel = null
-                searchText = ""
-                selectedTag = null
-            },
-            onAdClick = { selectedAd = it }
-        )
+        AnimatedContent(
+            targetState = selectedAd,
+            label = "previewAdDetailTransition",
+            transitionSpec = {
+                val goingToDetail = initialState == null && targetState != null
+                if (goingToDetail) {
+                    (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 4 } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it / 4 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { it / 3 } + fadeOut())
+                }
+            }
+        ) { ad ->
+            if (ad != null) {
+                AdDetailScreen(
+                    ad = ad,
+                    onBackClick = { selectedAd = null }
+                )
+            } else {
+                HomeScreen(
+                    uiState = AdFeedUiState(
+                        channels = Channel.entries,
+                        selectedChannel = selectedChannel,
+                        searchText = searchText,
+                        selectedTag = selectedTag,
+                        ads = visibleAds
+                    ),
+                    onChannelSelected = { selectedChannel = it },
+                    onSearchChange = { searchText = it },
+                    onTagSelected = { tag ->
+                        selectedTag = tag
+                            ?.trim()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.let { nextTag ->
+                                if (nextTag.equals(selectedTag, ignoreCase = true)) null else nextTag
+                            }
+                    },
+                    onClearFilters = {
+                        selectedChannel = null
+                        searchText = ""
+                        selectedTag = null
+                    },
+                    onAdClick = { selectedAd = it }
+                )
+            }
+        }
     }
 }
 
