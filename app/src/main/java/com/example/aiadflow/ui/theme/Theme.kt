@@ -50,6 +50,14 @@ object AppSpacing {
     val TabBorderWidth = 1.dp
     /** 搜索框高度。 */
     val SearchHeight = 56.dp
+    /** 搜索框描边宽度。 */
+    val SearchBorderWidth = 1.dp
+    /** 搜索框内部分割线高度。 */
+    val SearchDividerHeight = 24.dp
+    /** 搜索框内部分割线宽度。 */
+    val SearchDividerWidth = 1.dp
+    /** 搜索框清除按钮尺寸。 */
+    val SearchClearButton = 28.dp
     /** 大图和视频广告的媒体区域高度。 */
     val AdMediaHeight = 168.dp
     /** 视频广告封面区域高度。 */
@@ -66,6 +74,7 @@ object AppSpacing {
     val PlayButton = 56.dp
     /** 标签 chip 的垂直内边距。 */
     val TagVertical = 6.dp
+    val TagBorderWidth = 1.dp
     /** 操作按钮高度。 */
     val ActionHeight = 36.dp
     /** 空状态卡片高度。 */

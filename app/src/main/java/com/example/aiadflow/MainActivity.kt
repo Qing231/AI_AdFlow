@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -281,19 +282,36 @@ private fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit
 ) {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(AppSpacing.SearchHeight)
             .clip(AppRadius.Large)
             .background(AppColors.Surface)
+            .border(
+                width = AppSpacing.SearchBorderWidth,
+                color = if (query.isBlank()) AppColors.MediaPlaceholder else AppColors.Primary,
+                shape = AppRadius.Large
+            )
             .padding(horizontal = AppSpacing.Medium),
-        contentAlignment = Alignment.CenterStart
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)
     ) {
+        Text(
+            text = "\u641c",
+            color = if (query.isBlank()) AppColors.TextMuted else AppColors.Primary,
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+        )
+        HorizontalDivider(
+            modifier = Modifier
+                .height(AppSpacing.SearchDividerHeight)
+                .width(AppSpacing.SearchDividerWidth),
+            color = AppColors.MediaPlaceholder
+        )
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppColors.TextPrimary),
             singleLine = true,
             decorationBox = { innerTextField ->
@@ -307,6 +325,22 @@ private fun SearchBar(
                 innerTextField()
             }
         )
+        if (query.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .size(AppSpacing.SearchClearButton)
+                    .clip(CircleShape)
+                    .background(AppColors.PageBackground)
+                    .clickable { onQueryChange("") },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "\u00d7",
+                    color = AppColors.TextSecondary,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            }
+        }
     }
 }
 
@@ -598,10 +632,27 @@ private fun TagRow(
     ) {
         tags.take(3).forEach { tag ->
             val selected = tag.equals(selectedTag, ignoreCase = true)
+            val backgroundColor by animateColorAsState(
+                targetValue = if (selected) AppColors.Primary else AppColors.PageBackground,
+                label = "tagBackground"
+            )
+            val borderColor by animateColorAsState(
+                targetValue = if (selected) AppColors.Primary else AppColors.MediaPlaceholder,
+                label = "tagBorder"
+            )
+            val textColor by animateColorAsState(
+                targetValue = if (selected) AppColors.OnPrimary else AppColors.TextSecondary,
+                label = "tagText"
+            )
             Box(
                 modifier = Modifier
                     .clip(AppRadius.Full)
-                    .background(if (selected) AppColors.Primary else AppColors.PageBackground)
+                    .background(backgroundColor)
+                    .border(
+                        width = AppSpacing.TagBorderWidth,
+                        color = borderColor,
+                        shape = AppRadius.Full
+                    )
                     .clickable { onTagClick(tag) }
                     .padding(
                         horizontal = AppSpacing.Small,
@@ -610,8 +661,10 @@ private fun TagRow(
             ) {
                 Text(
                     text = "#$tag",
-                    color = if (selected) AppColors.OnPrimary else AppColors.TextSecondary,
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
+                    color = textColor,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    )
                 )
             }
         }
