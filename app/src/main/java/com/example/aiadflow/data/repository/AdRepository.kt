@@ -30,16 +30,18 @@ class AdRepository(
      */
     fun getAds(
         channel: Channel? = null,
-        query: String = ""
+        query: String = "",
+        selectedTag: String? = null
     ): List<AdItem> {
         val keywords = normalizeKeywords(query)
-        val channelAds = getCachedAds(channel)
+        val normalizedTag = selectedTag?.trim().orEmpty()
+        val tagAds = getCachedAds(channel).filterByTag(normalizedTag)
 
         if (keywords.isEmpty()) {
-            return channelAds
+            return tagAds
         }
 
-        return channelAds.filter { ad -> ad.matchesKeywords(keywords) }
+        return tagAds.filter { ad -> ad.matchesKeywords(keywords) }
     }
 
     private fun normalizeKeywords(query: String): List<String> {
@@ -51,10 +53,19 @@ class AdRepository(
 
     private fun AdItem.matchesKeywords(keywords: List<String>): Boolean {
         return keywords.all { keyword ->
-            brandName.contains(keyword, ignoreCase = true) ||
-                title.contains(keyword, ignoreCase = true) ||
+            title.contains(keyword, ignoreCase = true) ||
                 summary.contains(keyword, ignoreCase = true) ||
                 tags.any { it.contains(keyword, ignoreCase = true) }
+        }
+    }
+
+    private fun List<AdItem>.filterByTag(selectedTag: String): List<AdItem> {
+        if (selectedTag.isBlank()) {
+            return this
+        }
+
+        return filter { ad ->
+            ad.tags.any { it.equals(selectedTag, ignoreCase = true) }
         }
     }
 

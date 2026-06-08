@@ -22,6 +22,7 @@ data class AdFeedUiState(
     val selectedChannel: Channel? = null,
     /** 搜索框文本。 */
     val searchText: String = "",
+    val selectedTag: String? = null,
     /** 根据频道和搜索词过滤后的广告列表。 */
     val ads: List<AdItem> = emptyList(),
     /** 当前会话内累计记录的广告曝光次数。 */
@@ -61,7 +62,7 @@ class AdFeedViewModel(
 
             current.copy(
                 selectedChannel = nextChannel,
-                ads = repository.getAds(nextChannel, current.searchText)
+                ads = repository.getAds(nextChannel, current.searchText, current.selectedTag)
             )
         }
     }
@@ -76,7 +77,27 @@ class AdFeedViewModel(
         _uiState.update { current ->
             current.copy(
                 searchText = text,
-                ads = repository.getAds(current.selectedChannel, text)
+                ads = repository.getAds(current.selectedChannel, text, current.selectedTag)
+            )
+        }
+    }
+
+    fun selectTag(tag: String?) {
+        _uiState.update { current ->
+            val nextTag = tag
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { selectedTag ->
+                    if (selectedTag.equals(current.selectedTag, ignoreCase = true)) {
+                        null
+                    } else {
+                        selectedTag
+                    }
+                }
+
+            current.copy(
+                selectedTag = nextTag,
+                ads = repository.getAds(current.selectedChannel, current.searchText, nextTag)
             )
         }
     }
@@ -85,7 +106,7 @@ class AdFeedViewModel(
     fun refreshAds() {
         _uiState.update { current ->
             current.copy(
-                ads = repository.getAds(current.selectedChannel, current.searchText)
+                ads = repository.getAds(current.selectedChannel, current.searchText, current.selectedTag)
             )
         }
     }

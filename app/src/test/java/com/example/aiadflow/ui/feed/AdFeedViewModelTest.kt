@@ -20,8 +20,7 @@ class AdFeedViewModelTest {
         assertTrue(state.ads.isNotEmpty())
         assertTrue(state.ads.all { it.channel == Channel.Ecommerce })
         assertTrue(state.ads.all { ad ->
-            ad.brandName.contains("backpack", ignoreCase = true) ||
-                ad.title.contains("backpack", ignoreCase = true) ||
+            ad.title.contains("backpack", ignoreCase = true) ||
                 ad.summary.contains("backpack", ignoreCase = true) ||
                 ad.tags.any { it.contains("backpack", ignoreCase = true) }
         })
@@ -66,11 +65,52 @@ class AdFeedViewModelTest {
         assertTrue(state.ads.isNotEmpty())
         assertTrue(state.ads.all { it.channel == Channel.Ecommerce })
         assertTrue(state.ads.all { ad ->
-            ad.brandName.contains("backpack", ignoreCase = true) ||
-                ad.title.contains("backpack", ignoreCase = true) ||
+            ad.title.contains("backpack", ignoreCase = true) ||
                 ad.summary.contains("backpack", ignoreCase = true) ||
-                ad.tags.any { it.contains("backpack", ignoreCase = true) }
+            ad.tags.any { it.contains("backpack", ignoreCase = true) }
         })
+    }
+
+    @Test
+    fun selectTagFiltersCurrentAds() {
+        val viewModel = AdFeedViewModel()
+
+        viewModel.selectTag("Local")
+
+        val state = viewModel.uiState.value
+        assertEquals("Local", state.selectedTag)
+        assertTrue(state.ads.isNotEmpty())
+        assertTrue(state.ads.all { ad ->
+            ad.tags.any { it.equals("Local", ignoreCase = true) }
+        })
+    }
+
+    @Test
+    fun selectTagCombinesWithChannelAndSearchText() {
+        val viewModel = AdFeedViewModel()
+
+        viewModel.switchChannel(Channel.Ecommerce)
+        viewModel.updateSearchText("backpack")
+        viewModel.selectTag("Commute")
+
+        val state = viewModel.uiState.value
+        assertEquals(Channel.Ecommerce, state.selectedChannel)
+        assertEquals("backpack", state.searchText)
+        assertEquals("Commute", state.selectedTag)
+        assertEquals(listOf(6L), state.ads.map { it.id })
+    }
+
+    @Test
+    fun selectTagAgainClearsSelectedTag() {
+        val viewModel = AdFeedViewModel()
+        val initialAdCount = viewModel.uiState.value.ads.size
+
+        viewModel.selectTag("Local")
+        viewModel.selectTag("local")
+
+        val state = viewModel.uiState.value
+        assertEquals(null, state.selectedTag)
+        assertEquals(initialAdCount, state.ads.size)
     }
 
     @Test

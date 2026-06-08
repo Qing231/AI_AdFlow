@@ -68,6 +68,7 @@ class MainActivity : ComponentActivity() {
                     uiState = uiState,
                     onChannelSelected = viewModel::switchChannel,
                     onSearchChange = viewModel::updateSearchText,
+                    onTagSelected = viewModel::selectTag,
                     onAdClick = viewModel::trackAdClick
                 )
             }
@@ -80,6 +81,7 @@ private fun HomeScreen(
     uiState: AdFeedUiState,
     onChannelSelected: (Channel?) -> Unit,
     onSearchChange: (String) -> Unit,
+    onTagSelected: (String?) -> Unit,
     onAdClick: (AdItem) -> Unit
 ) {
     val likedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
@@ -128,6 +130,7 @@ private fun HomeScreen(
                         ad = ad,
                         liked = likedOverrides[ad.id] ?: ad.liked,
                         collected = collectedOverrides[ad.id] ?: ad.collected,
+                        selectedTag = uiState.selectedTag,
                         onLikeClick = {
                             likedOverrides[ad.id] = !(likedOverrides[ad.id] ?: ad.liked)
                         },
@@ -136,7 +139,8 @@ private fun HomeScreen(
                         },
                         onViewClick = {
                             onAdClick(ad)
-                        }
+                        },
+                        onTagClick = onTagSelected
                     )
                 }
             }
@@ -301,9 +305,11 @@ private fun AdCard(
     ad: AdItem,
     liked: Boolean,
     collected: Boolean,
+    selectedTag: String?,
     onLikeClick: () -> Unit,
     onCollectClick: () -> Unit,
-    onViewClick: () -> Unit
+    onViewClick: () -> Unit,
+    onTagClick: (String) -> Unit
 ) {
     val mediaSpec = mediaSpecFor(ad.type)
 
@@ -331,7 +337,9 @@ private fun AdCard(
                     AdSummaryContent(
                         ad = ad,
                         modifier = Modifier.weight(1f),
-                        showChannelInline = true
+                        showChannelInline = true,
+                        selectedTag = selectedTag,
+                        onTagClick = onTagClick
                     )
                 }
             }
@@ -343,7 +351,11 @@ private fun AdCard(
                         .fillMaxWidth()
                         .height(mediaSpec.height)
                 )
-                AdSummaryContent(ad = ad)
+                AdSummaryContent(
+                    ad = ad,
+                    selectedTag = selectedTag,
+                    onTagClick = onTagClick
+                )
             }
             AdType.Video -> {
                 AdSummaryHeader(ad = ad)
@@ -359,7 +371,11 @@ private fun AdCard(
                     color = AppColors.TextSecondary,
                     style = MaterialTheme.typography.bodyMedium
                 )
-                TagRow(tags = ad.tags)
+                TagRow(
+                    tags = ad.tags,
+                    selectedTag = selectedTag,
+                    onTagClick = onTagClick
+                )
             }
             AdType.LargeImage -> {
                 AdMediaBlock(
@@ -369,7 +385,12 @@ private fun AdCard(
                         .fillMaxWidth()
                         .height(mediaSpec.height)
                 )
-                AdSummaryContent(ad = ad, titleFirst = true)
+                AdSummaryContent(
+                    ad = ad,
+                    titleFirst = true,
+                    selectedTag = selectedTag,
+                    onTagClick = onTagClick
+                )
             }
         }
         AdActionRow(
@@ -431,7 +452,9 @@ private fun AdSummaryContent(
     ad: AdItem,
     modifier: Modifier = Modifier,
     titleFirst: Boolean = false,
-    showChannelInline: Boolean = false
+    showChannelInline: Boolean = false,
+    selectedTag: String?,
+    onTagClick: (String) -> Unit
 ) {
     Column(
         modifier = modifier,
@@ -452,7 +475,11 @@ private fun AdSummaryContent(
             color = AppColors.TextSecondary,
             style = MaterialTheme.typography.bodyMedium
         )
-        TagRow(tags = ad.tags)
+        TagRow(
+            tags = ad.tags,
+            selectedTag = selectedTag,
+            onTagClick = onTagClick
+        )
     }
 }
 
@@ -522,16 +549,22 @@ private fun AdActionRow(
 }
 
 @Composable
-private fun TagRow(tags: List<String>) {
+private fun TagRow(
+    tags: List<String>,
+    selectedTag: String?,
+    onTagClick: (String) -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)
     ) {
         tags.take(3).forEach { tag ->
+            val selected = tag.equals(selectedTag, ignoreCase = true)
             Box(
                 modifier = Modifier
                     .clip(AppRadius.Full)
-                    .background(AppColors.PageBackground)
+                    .background(if (selected) AppColors.Primary else AppColors.PageBackground)
+                    .clickable { onTagClick(tag) }
                     .padding(
                         horizontal = AppSpacing.Small,
                         vertical = AppSpacing.TagVertical
@@ -539,7 +572,7 @@ private fun TagRow(tags: List<String>) {
             ) {
                 Text(
                     text = "#$tag",
-                    color = AppColors.TextSecondary,
+                    color = if (selected) AppColors.OnPrimary else AppColors.TextSecondary,
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
                 )
             }
@@ -645,6 +678,7 @@ private fun HomeScreenPreview() {
             ),
             onChannelSelected = {},
             onSearchChange = {},
+            onTagSelected = {},
             onAdClick = {}
         )
     }
