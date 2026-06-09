@@ -260,7 +260,13 @@ private fun LoadMoreFooter(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        if (errorMessage != null) {
+        if (!hasMoreAds) {
+            Text(
+                text = "\u6ca1\u6709\u66f4\u591a\u5e7f\u544a\u4e86",
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else if (errorMessage != null) {
             Text(
                 text = errorMessage,
                 color = AppColors.TextSecondary,
@@ -286,7 +292,7 @@ private fun LoadMoreFooter(
             )
         } else {
             Text(
-                text = if (hasMoreAds) "\u4e0a\u62c9\u52a0\u8f7d\u66f4\u591a" else "\u6ca1\u6709\u66f4\u591a\u5e7f\u544a\u4e86",
+                text = "\u4e0a\u62c9\u52a0\u8f7d\u66f4\u591a",
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.bodyMedium
             )
@@ -983,7 +989,8 @@ private fun HomeScreenPreview() {
                         selectedTag = selectedTag,
                         ads = visibleAds,
                         isLoadingMore = false,
-                        loadMoreErrorMessage = "\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5"
+                        hasMoreAds = false,
+                        loadMoreErrorMessage = null
                     ),
                     onChannelSelected = { selectedChannel = it },
                     onSearchChange = { searchText = it },
