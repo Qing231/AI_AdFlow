@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity() {
                         onClearFilters = viewModel::clearFilters,
                         onRefresh = viewModel::refreshAds,
                         onLoadMore = viewModel::loadMoreAds,
+                        onRetryLoadMore = viewModel::retryLoadMoreAds,
                         onAdClick = { ad ->
                             viewModel.trackAdClick(ad)
                             selectedAd = ad
@@ -133,6 +134,7 @@ private fun HomeScreen(
     onClearFilters: () -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
+    onRetryLoadMore: () -> Unit,
     onAdClick: (AdItem) -> Unit
 ) {
     val likedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
@@ -147,6 +149,7 @@ private fun HomeScreen(
             uiState.ads.isNotEmpty() &&
                 uiState.hasMoreAds &&
                 !uiState.isLoadingMore &&
+                uiState.loadMoreErrorMessage == null &&
                 totalItems > 0 &&
                 lastVisibleIndex >= totalItems - 2
         }
@@ -230,7 +233,9 @@ private fun HomeScreen(
                 item(key = "load-more-footer") {
                     LoadMoreFooter(
                         isLoadingMore = uiState.isLoadingMore,
-                        hasMoreAds = uiState.hasMoreAds
+                        hasMoreAds = uiState.hasMoreAds,
+                        errorMessage = uiState.loadMoreErrorMessage,
+                        onRetryClick = onRetryLoadMore
                     )
                 }
             }
@@ -242,7 +247,9 @@ private fun HomeScreen(
 @Composable
 private fun LoadMoreFooter(
     isLoadingMore: Boolean,
-    hasMoreAds: Boolean
+    hasMoreAds: Boolean,
+    errorMessage: String?,
+    onRetryClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -253,7 +260,19 @@ private fun LoadMoreFooter(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        if (isLoadingMore) {
+        if (errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.width(AppSpacing.Small))
+            ActionChip(
+                text = "\u91cd\u8bd5",
+                selected = true,
+                onClick = onRetryClick
+            )
+        } else if (isLoadingMore) {
             CircularProgressIndicator(
                 modifier = Modifier.size(AppSpacing.LoadMoreIndicatorSize),
                 strokeWidth = AppSpacing.LoadMoreIndicatorStroke,
@@ -960,11 +979,12 @@ private fun HomeScreenPreview() {
                     uiState = AdFeedUiState(
                         channels = Channel.entries,
                         selectedChannel = selectedChannel,
-                searchText = searchText,
-                selectedTag = selectedTag,
-                ads = visibleAds,
-                isLoadingMore = true
-            ),
+                        searchText = searchText,
+                        selectedTag = selectedTag,
+                        ads = visibleAds,
+                        isLoadingMore = false,
+                        loadMoreErrorMessage = "\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5"
+                    ),
                     onChannelSelected = { selectedChannel = it },
                     onSearchChange = { searchText = it },
                     onTagSelected = { tag ->
@@ -982,6 +1002,7 @@ private fun HomeScreenPreview() {
                     },
                     onRefresh = {},
                     onLoadMore = {},
+                    onRetryLoadMore = {},
                     onAdClick = { selectedAd = it }
                 )
             }

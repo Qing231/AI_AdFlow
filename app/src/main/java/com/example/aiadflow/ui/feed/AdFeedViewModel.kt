@@ -36,6 +36,7 @@ data class AdFeedUiState(
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasMoreAds: Boolean = true,
+    val loadMoreErrorMessage: String? = null,
     val currentPage: Int = 1
 )
 
@@ -81,7 +82,8 @@ class AdFeedViewModel(
                 ads = repository.getAds(nextChannel, current.searchText, current.selectedTag).take(PageSize),
                 hasMoreAds = repository.getAds(nextChannel, current.searchText, current.selectedTag).size > PageSize,
                 currentPage = 1,
-                isLoadingMore = false
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
             )
         }
     }
@@ -99,7 +101,8 @@ class AdFeedViewModel(
                 ads = repository.getAds(current.selectedChannel, text, current.selectedTag).take(PageSize),
                 hasMoreAds = repository.getAds(current.selectedChannel, text, current.selectedTag).size > PageSize,
                 currentPage = 1,
-                isLoadingMore = false
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
             )
         }
     }
@@ -122,7 +125,8 @@ class AdFeedViewModel(
                 ads = repository.getAds(current.selectedChannel, current.searchText, nextTag).take(PageSize),
                 hasMoreAds = repository.getAds(current.selectedChannel, current.searchText, nextTag).size > PageSize,
                 currentPage = 1,
-                isLoadingMore = false
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
             )
         }
     }
@@ -136,7 +140,8 @@ class AdFeedViewModel(
                 ads = repository.getAds().take(PageSize),
                 hasMoreAds = repository.getAds().size > PageSize,
                 currentPage = 1,
-                isLoadingMore = false
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
             )
         }
     }
@@ -148,18 +153,24 @@ class AdFeedViewModel(
                 ads = repository.getAds(current.selectedChannel, current.searchText, current.selectedTag).take(PageSize),
                 hasMoreAds = repository.getAds(current.selectedChannel, current.searchText, current.selectedTag).size > PageSize,
                 currentPage = 1,
-                isLoadingMore = false
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
             )
         }
     }
 
     fun loadMoreAds() {
         val current = _uiState.value
-        if (current.isLoadingMore || !current.hasMoreAds || current.ads.isEmpty()) {
+        if (current.isLoadingMore || !current.hasMoreAds || current.ads.isEmpty() || current.loadMoreErrorMessage != null) {
             return
         }
 
-        _uiState.update { it.copy(isLoadingMore = true) }
+        _uiState.update {
+            it.copy(
+                isLoadingMore = true,
+                loadMoreErrorMessage = null
+            )
+        }
 
         viewModelScope.launch {
             delay(LoadMoreDelayMillis)
@@ -168,22 +179,35 @@ class AdFeedViewModel(
                     return@update latest
                 }
 
-                val nextPage = latest.currentPage + 1
-                val allAds = repository.getAds(
-                    latest.selectedChannel,
-                    latest.searchText,
-                    latest.selectedTag
-                )
-                val nextAds = allAds.take(nextPage * PageSize)
+                try {
+                    val nextPage = latest.currentPage + 1
+                    val allAds = repository.getAds(
+                        latest.selectedChannel,
+                        latest.searchText,
+                        latest.selectedTag
+                    )
+                    val nextAds = allAds.take(nextPage * PageSize)
 
-                latest.copy(
-                    ads = nextAds,
-                    currentPage = nextPage,
-                    hasMoreAds = nextAds.size < allAds.size,
-                    isLoadingMore = false
-                )
+                    latest.copy(
+                        ads = nextAds,
+                        currentPage = nextPage,
+                        hasMoreAds = nextAds.size < allAds.size,
+                        isLoadingMore = false,
+                        loadMoreErrorMessage = null
+                    )
+                } catch (_: Exception) {
+                    latest.copy(
+                        isLoadingMore = false,
+                        loadMoreErrorMessage = "加载失败，请重试"
+                    )
+                }
             }
         }
+    }
+
+    fun retryLoadMoreAds() {
+        _uiState.update { it.copy(loadMoreErrorMessage = null) }
+        loadMoreAds()
     }
 
     /** 记录广告曝光事件。 */
