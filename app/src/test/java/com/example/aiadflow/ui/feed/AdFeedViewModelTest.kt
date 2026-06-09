@@ -167,4 +167,36 @@ class AdFeedViewModelTest {
         assertEquals(2, state.clickCount)
         assertEquals(2, state.clickCountsByAdId[ad.id])
     }
+
+    @Test
+    fun toggleLikeLikesUnlikedAd() {
+        val viewModel = AdFeedViewModel()
+        val ad = viewModel.uiState.value.ads.first { !it.liked }
+
+        viewModel.toggleLike(ad.id)
+
+        val state = viewModel.uiState.value
+        assertEquals(true, state.likedOverridesByAdId[ad.id])
+    }
+
+    @Test
+    fun toggleLikeUnlikesInitiallyLikedAd() {
+        val viewModel = AdFeedViewModel()
+        val ad = viewModel.uiState.value.ads.first { it.liked }
+
+        viewModel.toggleLike(ad.id)
+
+        val state = viewModel.uiState.value
+        assertEquals(false, state.likedOverridesByAdId[ad.id])
+    }
+
+    @Test
+    fun toggleLikeIgnoresMissingAdId() {
+        val viewModel = AdFeedViewModel()
+        val initialLikedOverrides = viewModel.uiState.value.likedOverridesByAdId
+
+        viewModel.toggleLike(-1L)
+
+        assertSame(initialLikedOverrides, viewModel.uiState.value.likedOverridesByAdId)
+    }
 }
