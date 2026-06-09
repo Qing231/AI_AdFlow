@@ -45,6 +45,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -55,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +78,10 @@ import com.example.aiadflow.ui.theme.AIAdFlowTheme
 import com.example.aiadflow.ui.theme.AppColors
 import com.example.aiadflow.ui.theme.AppRadius
 import com.example.aiadflow.ui.theme.AppSpacing
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private const val RefreshSnackbarVisibleMillis = 1200L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,10 +114,10 @@ class MainActivity : ComponentActivity() {
                         onSearchChange = viewModel::updateSearchText,
                         onTagSelected = viewModel::selectTag,
                         onClearFilters = viewModel::clearFilters,
-                        onRefresh = viewModel::refreshAds,
-                        onLoadMore = viewModel::loadMoreAds,
-                        onRetryLoadMore = viewModel::retryLoadMoreAds,
-                        onAdClick = { ad ->
+                            onRefresh = viewModel::refreshAds,
+                            onLoadMore = viewModel::loadMoreAds,
+                            onRetryLoadMore = viewModel::retryLoadMoreAds,
+                            onAdClick = { ad ->
                             viewModel.trackAdClick(ad)
                             selectedAd = ad
                             }
@@ -132,7 +141,7 @@ private fun HomeScreen(
     onSearchChange: (String) -> Unit,
     onTagSelected: (String?) -> Unit,
     onClearFilters: () -> Unit,
-    onRefresh: () -> Unit,
+    onRefresh: () -> Boolean,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
     onAdClick: (AdItem) -> Unit
@@ -140,6 +149,8 @@ private fun HomeScreen(
     val likedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
     val collectedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
     val listState = rememberLazyListState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val shouldLoadMore by remember(uiState.hasMoreAds, uiState.isLoadingMore, uiState.ads.size) {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
@@ -161,22 +172,45 @@ private fun HomeScreen(
         }
     }
 
-    Surface(
+    val refreshWithFeedback: () -> Unit = {
+        coroutineScope.launch {
+            val isSuccess = onRefresh()
+            val snackbarJob = launch {
+                snackbarHostState.showSnackbar(
+                    message = if (isSuccess) "刷新成功" else "刷新失败，请稍后重试",
+                    duration = SnackbarDuration.Indefinite
+                )
+            }
+            delay(RefreshSnackbarVisibleMillis)
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarJob.join()
+        }
+    }
+
+    Scaffold(
         modifier = Modifier.fillMaxSize(),
-        color = AppColors.PageBackground
-    ) {
-        AdFeedRefreshContainer(
-            isRefreshing = uiState.isLoading,
-            onRefresh = onRefresh
+        containerColor = AppColors.PageBackground,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            color = AppColors.PageBackground
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = AppSpacing.PageHorizontal),
-                contentPadding = PaddingValues(bottom = AppSpacing.Section),
-                verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)
+        Box(modifier = Modifier.fillMaxSize()) {
+            AdFeedRefreshContainer(
+                isRefreshing = uiState.isLoading,
+                onRefresh = refreshWithFeedback
             ) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = AppSpacing.PageHorizontal),
+                    contentPadding = PaddingValues(bottom = AppSpacing.Section),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)
+                ) {
             item(key = "status-bars-spacer") {
                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             }
@@ -195,11 +229,6 @@ private fun HomeScreen(
                     query = uiState.searchText,
                     onQueryChange = onSearchChange
                 )
-            }
-            uiState.refreshMessage?.let { message ->
-                item(key = "refresh-message") {
-                    RefreshMessageBar(message = message)
-                }
             }
             if (uiState.hasActiveFilters()) {
                 item(key = "active-filters") {
@@ -244,31 +273,10 @@ private fun HomeScreen(
                     )
                 }
             }
+            }
+            }
         }
     }
-}
-}
-
-@Composable
-private fun RefreshMessageBar(message: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppRadius.Large)
-            .background(AppColors.Surface)
-            .border(
-                width = AppSpacing.SearchBorderWidth,
-                color = if (message.contains("\u6210\u529f")) AppColors.Primary else AppColors.MediaPlaceholder,
-                shape = AppRadius.Large
-            )
-            .padding(AppSpacing.Medium),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Text(
-            text = message,
-            color = if (message.contains("\u6210\u529f")) AppColors.Primary else AppColors.TextSecondary,
-            style = MaterialTheme.typography.bodyMedium
-        )
     }
 }
 
@@ -1016,7 +1024,6 @@ private fun HomeScreenPreview() {
                         searchText = searchText,
                         selectedTag = selectedTag,
                         ads = visibleAds,
-                        refreshMessage = "\u5237\u65b0\u6210\u529f",
                         isLoadingMore = false,
                         hasMoreAds = false,
                         loadMoreErrorMessage = null
@@ -1036,7 +1043,7 @@ private fun HomeScreenPreview() {
                         searchText = ""
                         selectedTag = null
                     },
-                    onRefresh = {},
+                    onRefresh = { true },
                     onLoadMore = {},
                     onRetryLoadMore = {},
                     onAdClick = { selectedAd = it }
