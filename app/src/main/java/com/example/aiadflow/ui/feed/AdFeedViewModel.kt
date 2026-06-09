@@ -30,7 +30,9 @@ data class AdFeedUiState(
     /** 当前会话内按广告 id 聚合的曝光次数。 */
     val exposureCountsByAdId: Map<Long, Int> = emptyMap(),
     /** 是否正在加载数据，预留给后续真实接口接入。 */
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val hasMoreAds: Boolean = true
 )
 
 /**

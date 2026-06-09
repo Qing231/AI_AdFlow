@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -200,10 +201,52 @@ private fun HomeScreen(
                         onTagClick = onTagSelected
                     )
                 }
+                item(key = "load-more-footer") {
+                    LoadMoreFooter(
+                        isLoadingMore = uiState.isLoadingMore,
+                        hasMoreAds = uiState.hasMoreAds
+                    )
+                }
             }
         }
     }
 }
+}
+
+@Composable
+private fun LoadMoreFooter(
+    isLoadingMore: Boolean,
+    hasMoreAds: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(AppRadius.Large)
+            .background(AppColors.Surface)
+            .padding(AppSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (isLoadingMore) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(AppSpacing.LoadMoreIndicatorSize),
+                strokeWidth = AppSpacing.LoadMoreIndicatorStroke,
+                color = AppColors.Primary
+            )
+            Spacer(modifier = Modifier.width(AppSpacing.Small))
+            Text(
+                text = "\u6b63\u5728\u52a0\u8f7d\u66f4\u591a",
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        } else {
+            Text(
+                text = if (hasMoreAds) "\u4e0a\u62c9\u52a0\u8f7d\u66f4\u591a" else "\u6ca1\u6709\u66f4\u591a\u5e7f\u544a\u4e86",
+                color = AppColors.TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
 }
 
 @Composable
@@ -891,10 +934,11 @@ private fun HomeScreenPreview() {
                     uiState = AdFeedUiState(
                         channels = Channel.entries,
                         selectedChannel = selectedChannel,
-                        searchText = searchText,
-                        selectedTag = selectedTag,
-                        ads = visibleAds
-                    ),
+                searchText = searchText,
+                selectedTag = selectedTag,
+                ads = visibleAds,
+                isLoadingMore = true
+            ),
                     onChannelSelected = { selectedChannel = it },
                     onSearchChange = { searchText = it },
                     onTagSelected = { tag ->

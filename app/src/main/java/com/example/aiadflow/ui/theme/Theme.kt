@@ -80,6 +80,8 @@ object AppSpacing {
     val ActionHeight = 36.dp
     /** 空状态卡片高度。 */
     val EmptyHeight = 160.dp
+    val LoadMoreIndicatorSize = 18.dp
+    val LoadMoreIndicatorStroke = 2.dp
 }
 
 /** 应用 Compose 主题入口，统一注入颜色和字体。 */
