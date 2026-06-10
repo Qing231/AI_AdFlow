@@ -36,6 +36,8 @@ data class AdFeedUiState(
     val clickCountsByAdId: Map<Long, Int> = emptyMap(),
     val likedOverridesByAdId: Map<Long, Boolean> = emptyMap(),
     val collectedOverridesByAdId: Map<Long, Boolean> = emptyMap(),
+    val showCollectedOnly: Boolean = false,
+    val collectedCount: Int = 0,
     /** 是否正在加载数据，预留给后续真实接口接入。 */
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
@@ -65,6 +67,7 @@ class AdFeedViewModel(
             AdFeedUiState(
                 channels = repository.getChannels(),
                 ads = initialAds.take(PageSize),
+                collectedCount = initialAds.count { it.collected },
                 hasMoreAds = initialAds.size > PageSize,
                 currentPage = 1
             )
@@ -83,8 +86,16 @@ class AdFeedViewModel(
 
             current.copy(
                 selectedChannel = nextChannel,
-                ads = repository.getAds(nextChannel, current.searchText, current.selectedTag).take(PageSize),
-                hasMoreAds = repository.getAds(nextChannel, current.searchText, current.selectedTag).size > PageSize,
+                ads = current.filteredAds(
+                    channel = nextChannel,
+                    query = current.searchText,
+                    selectedTag = current.selectedTag
+                ).take(PageSize),
+                hasMoreAds = current.filteredAds(
+                    channel = nextChannel,
+                    query = current.searchText,
+                    selectedTag = current.selectedTag
+                ).size > PageSize,
                 currentPage = 1,
                 isLoadingMore = false,
                 loadMoreErrorMessage = null
@@ -102,8 +113,8 @@ class AdFeedViewModel(
         _uiState.update { current ->
             current.copy(
                 searchText = text,
-                ads = repository.getAds(current.selectedChannel, text, current.selectedTag).take(PageSize),
-                hasMoreAds = repository.getAds(current.selectedChannel, text, current.selectedTag).size > PageSize,
+                ads = current.filteredAds(query = text).take(PageSize),
+                hasMoreAds = current.filteredAds(query = text).size > PageSize,
                 currentPage = 1,
                 isLoadingMore = false,
                 loadMoreErrorMessage = null
@@ -126,8 +137,8 @@ class AdFeedViewModel(
 
             current.copy(
                 selectedTag = nextTag,
-                ads = repository.getAds(current.selectedChannel, current.searchText, nextTag).take(PageSize),
-                hasMoreAds = repository.getAds(current.selectedChannel, current.searchText, nextTag).size > PageSize,
+                ads = current.filteredAds(selectedTag = nextTag).take(PageSize),
+                hasMoreAds = current.filteredAds(selectedTag = nextTag).size > PageSize,
                 currentPage = 1,
                 isLoadingMore = false,
                 loadMoreErrorMessage = null
@@ -141,8 +152,25 @@ class AdFeedViewModel(
                 selectedChannel = null,
                 searchText = "",
                 selectedTag = null,
+                showCollectedOnly = false,
                 ads = repository.getAds().take(PageSize),
                 hasMoreAds = repository.getAds().size > PageSize,
+                currentPage = 1,
+                isLoadingMore = false,
+                loadMoreErrorMessage = null
+            )
+        }
+    }
+
+    fun toggleCollectedOnly() {
+        _uiState.update { current ->
+            val nextShowCollectedOnly = !current.showCollectedOnly
+            val nextAds = current.filteredAds(showCollectedOnly = nextShowCollectedOnly)
+
+            current.copy(
+                showCollectedOnly = nextShowCollectedOnly,
+                ads = nextAds.take(PageSize),
+                hasMoreAds = nextAds.size > PageSize,
                 currentPage = 1,
                 isLoadingMore = false,
                 loadMoreErrorMessage = null
@@ -158,10 +186,13 @@ class AdFeedViewModel(
                 current.selectedChannel,
                 current.searchText,
                 current.selectedTag
-            )
+            ).filterCollected(current.showCollectedOnly, current.collectedOverridesByAdId)
             _uiState.update {
                 it.copy(
                     ads = refreshedAds.take(PageSize),
+                    collectedCount = repository.getAds()
+                        .filter { ad -> it.collectedOverridesByAdId[ad.id] ?: ad.collected }
+                        .size,
                     hasMoreAds = refreshedAds.size > PageSize,
                     currentPage = 1,
                     isLoadingMore = false,
@@ -206,7 +237,7 @@ class AdFeedViewModel(
                         latest.selectedChannel,
                         latest.searchText,
                         latest.selectedTag
-                    )
+                    ).filterCollected(latest.showCollectedOnly, latest.collectedOverridesByAdId)
                     val nextAds = allAds.take(nextPage * PageSize)
 
                     latest.copy(
@@ -249,8 +280,17 @@ class AdFeedViewModel(
         val ad = repository.getAdById(adId) ?: return
         _uiState.update { current ->
             val currentCollected = current.collectedOverridesByAdId[adId] ?: ad.collected
+            val nextOverrides = current.collectedOverridesByAdId + (adId to !currentCollected)
+            val nextAds = current.copy(collectedOverridesByAdId = nextOverrides)
+                .filteredAds(collectedOverridesByAdId = nextOverrides)
             current.copy(
-                collectedOverridesByAdId = current.collectedOverridesByAdId + (adId to !currentCollected)
+                collectedOverridesByAdId = nextOverrides,
+                collectedCount = repository.getAds()
+                    .filter { repositoryAd -> nextOverrides[repositoryAd.id] ?: repositoryAd.collected }
+                    .size,
+                ads = nextAds.take(current.currentPage * PageSize),
+                hasMoreAds = nextAds.size > current.currentPage * PageSize,
+                loadMoreErrorMessage = null
             )
         }
     }
@@ -290,5 +330,27 @@ class AdFeedViewModel(
                 eventName = eventName
             )
         )
+    }
+
+    private fun AdFeedUiState.filteredAds(
+        channel: Channel? = selectedChannel,
+        query: String = searchText,
+        selectedTag: String? = this.selectedTag,
+        showCollectedOnly: Boolean = this.showCollectedOnly,
+        collectedOverridesByAdId: Map<Long, Boolean> = this.collectedOverridesByAdId
+    ): List<AdItem> {
+        return repository.getAds(channel, query, selectedTag)
+            .filterCollected(showCollectedOnly, collectedOverridesByAdId)
+    }
+
+    private fun List<AdItem>.filterCollected(
+        showCollectedOnly: Boolean,
+        collectedOverridesByAdId: Map<Long, Boolean>
+    ): List<AdItem> {
+        if (!showCollectedOnly) {
+            return this
+        }
+
+        return filter { ad -> collectedOverridesByAdId[ad.id] ?: ad.collected }
     }
 }

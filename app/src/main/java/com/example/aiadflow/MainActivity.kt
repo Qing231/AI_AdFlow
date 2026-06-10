@@ -116,6 +116,7 @@ class MainActivity : ComponentActivity() {
                             onSearchChange = viewModel::updateSearchText,
                             onTagSelected = viewModel::selectTag,
                             onClearFilters = viewModel::clearFilters,
+                            onCollectedFilterClick = viewModel::toggleCollectedOnly,
                             onRefresh = viewModel::refreshAds,
                             onLoadMore = viewModel::loadMoreAds,
                             onRetryLoadMore = viewModel::retryLoadMoreAds,
@@ -147,6 +148,7 @@ private fun HomeScreen(
     onSearchChange: (String) -> Unit,
     onTagSelected: (String?) -> Unit,
     onClearFilters: () -> Unit,
+    onCollectedFilterClick: () -> Unit,
     onRefresh: () -> Boolean,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
@@ -221,7 +223,11 @@ private fun HomeScreen(
                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             }
             item(key = "header") {
-                HeaderBar()
+                HeaderBar(
+                    showCollectedOnly = uiState.showCollectedOnly,
+                    collectedCount = uiState.collectedCount,
+                    onCollectedFilterClick = onCollectedFilterClick
+                )
             }
             item(key = "channel-tabs") {
                 ChannelTabs(
@@ -246,7 +252,7 @@ private fun HomeScreen(
             }
             if (uiState.ads.isEmpty()) {
                 item(key = "empty-feed") {
-                    EmptyFeed()
+                    EmptyFeed(showCollectedOnly = uiState.showCollectedOnly)
                 }
             } else {
                 items(
@@ -339,7 +345,11 @@ private fun LoadMoreFooter(
 }
 
 @Composable
-private fun HeaderBar() {
+private fun HeaderBar(
+    showCollectedOnly: Boolean,
+    collectedCount: Int,
+    onCollectedFilterClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -358,6 +368,16 @@ private fun HeaderBar() {
                 style = MaterialTheme.typography.bodyMedium
             )
         }
+        ActionChip(
+            text = if (showCollectedOnly) {
+                "\u5df2\u6536\u85cf $collectedCount"
+            } else {
+                "\u6536\u85cf $collectedCount"
+            },
+            selected = showCollectedOnly,
+            onClick = onCollectedFilterClick
+        )
+        Spacer(modifier = Modifier.width(AppSpacing.Small))
         Box(
             modifier = Modifier
                 .size(AppSpacing.IconButton)
@@ -996,7 +1016,7 @@ private fun ActionChip(
 }
 
 @Composable
-private fun EmptyFeed() {
+private fun EmptyFeed(showCollectedOnly: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1006,7 +1026,11 @@ private fun EmptyFeed() {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "\u6ca1\u6709\u5339\u914d\u7684\u5e7f\u544a",
+            text = if (showCollectedOnly) {
+                "\u6682\u65e0\u6536\u85cf\u5e7f\u544a"
+            } else {
+                "\u6ca1\u6709\u5339\u914d\u7684\u5e7f\u544a"
+            },
             color = AppColors.TextSecondary,
             style = MaterialTheme.typography.bodyMedium
         )
@@ -1060,11 +1084,14 @@ private fun channelLabelFor(channel: Channel): String = when (channel) {
 }
 
 private fun AdFeedUiState.hasActiveFilters(): Boolean {
-    return selectedChannel != null || searchText.isNotBlank() || !selectedTag.isNullOrBlank()
+    return selectedChannel != null || searchText.isNotBlank() || !selectedTag.isNullOrBlank() || showCollectedOnly
 }
 
 private fun activeFilterLabel(uiState: AdFeedUiState): String {
     val filters = buildList {
+        if (uiState.showCollectedOnly) {
+            add("\u6536\u85cf")
+        }
         uiState.selectedChannel?.let { add(channelLabelFor(it)) }
         uiState.searchText.takeIf { it.isNotBlank() }?.let { add("\"${it.trim()}\"") }
         uiState.selectedTag?.takeIf { it.isNotBlank() }?.let { add("#${it.trim()}") }
@@ -1085,24 +1112,26 @@ private fun HomeScreenPreview() {
         var selectedChannel by remember { mutableStateOf<Channel?>(null) }
         var searchText by remember { mutableStateOf("") }
         var selectedTag by remember { mutableStateOf<String?>(null) }
+        var showCollectedOnly by remember { mutableStateOf(false) }
         var selectedAd by remember { mutableStateOf<AdItem?>(null) }
         val likedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
         val collectedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
-        val visibleAds = remember(selectedChannel, searchText, selectedTag) {
-            PreviewAds
-                .filter { selectedChannel == null || it.channel == selectedChannel }
-                .filter { ad ->
-                    val query = searchText.trim()
-                    query.isBlank() ||
-                        ad.title.contains(query, ignoreCase = true) ||
-                        ad.summary.contains(query, ignoreCase = true) ||
-                        ad.tags.any { it.contains(query, ignoreCase = true) }
-                }
-                .filter { ad ->
-                    selectedTag.isNullOrBlank() ||
-                        ad.tags.any { it.equals(selectedTag, ignoreCase = true) }
-                }
-        }
+        val visibleAds = PreviewAds
+            .filter { selectedChannel == null || it.channel == selectedChannel }
+            .filter { ad ->
+                val query = searchText.trim()
+                query.isBlank() ||
+                    ad.title.contains(query, ignoreCase = true) ||
+                    ad.summary.contains(query, ignoreCase = true) ||
+                    ad.tags.any { it.contains(query, ignoreCase = true) }
+            }
+            .filter { ad ->
+                selectedTag.isNullOrBlank() ||
+                    ad.tags.any { it.equals(selectedTag, ignoreCase = true) }
+            }
+            .filter { ad ->
+                !showCollectedOnly || (collectedOverrides[ad.id] ?: ad.collected)
+            }
 
         AnimatedContent(
             targetState = selectedAd,
@@ -1133,6 +1162,8 @@ private fun HomeScreenPreview() {
                         ads = visibleAds,
                         likedOverridesByAdId = likedOverrides,
                         collectedOverridesByAdId = collectedOverrides,
+                        showCollectedOnly = showCollectedOnly,
+                        collectedCount = PreviewAds.count { ad -> collectedOverrides[ad.id] ?: ad.collected },
                         isLoadingMore = false,
                         hasMoreAds = false,
                         loadMoreErrorMessage = null
@@ -1151,7 +1182,9 @@ private fun HomeScreenPreview() {
                         selectedChannel = null
                         searchText = ""
                         selectedTag = null
+                        showCollectedOnly = false
                     },
+                    onCollectedFilterClick = { showCollectedOnly = !showCollectedOnly },
                     onRefresh = { true },
                     onLoadMore = {},
                     onRetryLoadMore = {},

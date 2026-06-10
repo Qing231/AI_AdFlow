@@ -2,6 +2,7 @@ package com.example.aiadflow.ui.feed
 
 import com.example.aiadflow.data.model.Channel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -121,13 +122,43 @@ class AdFeedViewModelTest {
         viewModel.switchChannel(Channel.Ecommerce)
         viewModel.updateSearchText("backpack")
         viewModel.selectTag("Commute")
+        viewModel.toggleCollectedOnly()
         viewModel.clearFilters()
 
         val state = viewModel.uiState.value
         assertEquals(null, state.selectedChannel)
         assertEquals("", state.searchText)
         assertEquals(null, state.selectedTag)
+        assertFalse(state.showCollectedOnly)
         assertEquals(initialAdIds, state.ads.map { it.id })
+    }
+
+    @Test
+    fun toggleCollectedOnlyShowsCollectedAdsAcrossPages() {
+        val viewModel = AdFeedViewModel()
+
+        viewModel.toggleCollectedOnly()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.showCollectedOnly)
+        assertEquals(2, state.collectedCount)
+        assertEquals(listOf(1L, 7L), state.ads.map { it.id })
+        assertTrue(state.ads.all { ad ->
+            state.collectedOverridesByAdId[ad.id] ?: ad.collected
+        })
+    }
+
+    @Test
+    fun toggleCollectedOnlyCombinesWithCurrentFilters() {
+        val viewModel = AdFeedViewModel()
+
+        viewModel.switchChannel(Channel.Ecommerce)
+        viewModel.toggleCollectedOnly()
+
+        val state = viewModel.uiState.value
+        assertEquals(Channel.Ecommerce, state.selectedChannel)
+        assertTrue(state.showCollectedOnly)
+        assertEquals(listOf(7L), state.ads.map { it.id })
     }
 
     @Test
@@ -220,6 +251,20 @@ class AdFeedViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(false, state.collectedOverridesByAdId[ad.id])
+        assertEquals(1, state.collectedCount)
+    }
+
+    @Test
+    fun toggleCollectRemovesUncollectedAdFromCollectedOnlyList() {
+        val viewModel = AdFeedViewModel()
+
+        viewModel.toggleCollectedOnly()
+        viewModel.toggleCollect(1L)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.showCollectedOnly)
+        assertEquals(1, state.collectedCount)
+        assertEquals(listOf(7L), state.ads.map { it.id })
     }
 
     @Test
