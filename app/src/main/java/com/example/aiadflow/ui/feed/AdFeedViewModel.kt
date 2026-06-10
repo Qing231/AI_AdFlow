@@ -34,6 +34,8 @@ data class AdFeedUiState(
     val collectedOverridesByAdId: Map<Long, Boolean> = emptyMap(),
     val showCollectedOnly: Boolean = false,
     val collectedCount: Int = 0,
+    val adAiSummariesByAdId: Map<Long, String> = emptyMap(),
+    val generatingAdSummaryIds: Set<Long> = emptySet(),
     val aiSummary: String = "",
     val isAiSummaryLoading: Boolean = false,
     val aiSummaryAdCount: Int = 0,
@@ -66,6 +68,7 @@ class AdFeedViewModel(
                 likedOverridesByAdId = localState.likedOverridesByAdId,
                 collectedOverridesByAdId = localState.collectedOverridesByAdId,
                 collectedCount = initialAds.count { localState.collectedOverridesByAdId[it.id] ?: it.collected },
+                adAiSummariesByAdId = repository.getAdAiSummaries(initialAds.take(PageSize).map(AdItem::id)),
                 hasMoreAds = initialAds.size > PageSize,
                 currentPage = 1
             )
@@ -75,6 +78,7 @@ class AdFeedViewModel(
 
     init {
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun switchChannel(channel: Channel?) {
@@ -96,6 +100,7 @@ class AdFeedViewModel(
             )
         }
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun selectChannel(channel: Channel?) {
@@ -112,6 +117,7 @@ class AdFeedViewModel(
             )
         }
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun selectTag(tag: String?) {
@@ -131,6 +137,7 @@ class AdFeedViewModel(
             )
         }
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun clearFilters() {
@@ -146,6 +153,7 @@ class AdFeedViewModel(
             )
         }
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun toggleCollectedOnly() {
@@ -159,6 +167,7 @@ class AdFeedViewModel(
             )
         }
         requestAiSummary(_uiState.value.ads)
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun refreshAds(): Boolean {
@@ -181,6 +190,7 @@ class AdFeedViewModel(
                 )
             }
             requestAiSummary(_uiState.value.ads)
+            ensureAdSummaries(_uiState.value.ads)
             true
         } catch (_: Exception) {
             _uiState.update {
@@ -236,6 +246,7 @@ class AdFeedViewModel(
                     )
                 }
             }
+            ensureAdSummaries(_uiState.value.ads)
         }
     }
 
@@ -278,6 +289,7 @@ class AdFeedViewModel(
             saveLocalState(nextState)
             nextState
         }
+        ensureAdSummaries(_uiState.value.ads)
     }
 
     fun shareAd(adId: Long): String? {
@@ -348,6 +360,44 @@ class AdFeedViewModel(
                         aiSummary = summary,
                         isAiSummaryLoading = false,
                         aiSummaryAdCount = ads.size
+                    )
+                }
+            }
+        }
+    }
+
+    private fun ensureAdSummaries(ads: List<AdItem>) {
+        if (ads.isEmpty()) {
+            return
+        }
+
+        val adIds = ads.map(AdItem::id)
+        val cachedSummaries = repository.getAdAiSummaries(adIds)
+        val missingAds = ads.filter { ad ->
+            cachedSummaries[ad.id].isNullOrBlank() &&
+                _uiState.value.adAiSummariesByAdId[ad.id].isNullOrBlank() &&
+                ad.id !in _uiState.value.generatingAdSummaryIds
+        }
+
+        _uiState.update { current ->
+            current.copy(
+                adAiSummariesByAdId = current.adAiSummariesByAdId + cachedSummaries,
+                generatingAdSummaryIds = current.generatingAdSummaryIds + missingAds.map(AdItem::id)
+            )
+        }
+
+        missingAds.forEach { ad ->
+            summaryScope.launch {
+                val summary = try {
+                    repository.generateAdAiSummary(ad)
+                } catch (_: Exception) {
+                    "AI 摘要：生成失败，请稍后重试。"
+                }
+                repository.saveAdAiSummary(ad.id, summary)
+                _uiState.update { current ->
+                    current.copy(
+                        adAiSummariesByAdId = current.adAiSummariesByAdId + (ad.id to summary),
+                        generatingAdSummaryIds = current.generatingAdSummaryIds - ad.id
                     )
                 }
             }

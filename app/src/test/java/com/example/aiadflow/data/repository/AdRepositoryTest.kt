@@ -111,4 +111,18 @@ class AdRepositoryTest {
 
         assertEquals(null, ad)
     }
+
+    @Test
+    fun adAiSummaryCachePersistsAcrossRepositoryInstances() {
+        val firstRepository = AdRepository()
+        val secondRepository = AdRepository()
+
+        firstRepository.saveAdAiSummary(6L, "Generated summary for ad 6")
+
+        assertEquals("Generated summary for ad 6", secondRepository.getAdAiSummary(6L))
+        assertEquals(
+            mapOf(6L to "Generated summary for ad 6"),
+            secondRepository.getAdAiSummaries(listOf(6L, -1L))
+        )
+    }
 }

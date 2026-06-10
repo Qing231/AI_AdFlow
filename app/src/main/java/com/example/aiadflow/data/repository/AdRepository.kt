@@ -16,6 +16,10 @@ class AdRepository(
     private val adProvider: MockAdProvider = MockAdProvider,
     private val aiSummaryClient: AiSummaryClient = AiSummaryClient()
 ) {
+    private companion object {
+        val adSummaryCache = mutableMapOf<Long, String>()
+    }
+
     private val keywordSeparator = Regex("[\\s,，、]+")
     private val channelCache = mutableMapOf<Channel?, List<AdItem>>()
 
@@ -51,6 +55,24 @@ class AdRepository(
     }
 
     suspend fun generateAiSummary(ads: List<AdItem>): String = aiSummaryClient.summarize(ads)
+
+    fun getAdAiSummary(adId: Long): String? = synchronized(adSummaryCache) {
+        adSummaryCache[adId]
+    }
+
+    fun getAdAiSummaries(adIds: Collection<Long>): Map<Long, String> = synchronized(adSummaryCache) {
+        adIds.mapNotNull { adId -> adSummaryCache[adId]?.let { adId to it } }.toMap()
+    }
+
+    fun saveAdAiSummary(adId: Long, summary: String) {
+        synchronized(adSummaryCache) {
+            adSummaryCache[adId] = summary
+        }
+    }
+
+    suspend fun generateAdAiSummary(ad: AdItem): String {
+        return aiSummaryClient.summarize(listOf(ad))
+    }
 
     private fun normalizeKeywords(query: String): List<String> {
         return query
