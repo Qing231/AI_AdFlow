@@ -12,6 +12,7 @@ import androidx.compose.animation.togetherWith
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -662,6 +664,9 @@ private fun AdMediaBlock(
     mediaSpec: AdMediaSpec,
     modifier: Modifier = Modifier
 ) {
+    var isVideoPlaying by remember(ad.id) { mutableStateOf(false) }
+    var isVideoMuted by remember(ad.id) { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .clip(AppRadius.Medium)
@@ -674,20 +679,20 @@ private fun AdMediaBlock(
             style = MaterialTheme.typography.labelLarge
         )
         if (mediaSpec.showPlayButton) {
-            Box(
+            VideoPlayButton(
+                isPlaying = isVideoPlaying,
+                onClick = { isVideoPlaying = !isVideoPlaying },
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(AppSpacing.PlayButton)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.9f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "\u64ad\u653e",
-                    color = AppColors.Primary,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+            )
+            VideoMuteButton(
+                isMuted = isVideoMuted,
+                onClick = { isVideoMuted = !isVideoMuted },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(AppSpacing.VideoMuteButton)
+            )
         }
         if (mediaSpec.showChannelBadge) {
             Text(
@@ -696,6 +701,105 @@ private fun AdMediaBlock(
                 color = AppColors.OnPrimary,
                 style = MaterialTheme.typography.labelLarge
             )
+        }
+    }
+}
+
+@Composable
+private fun VideoMuteButton(
+    isMuted: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.38f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(AppSpacing.VideoMuteIcon)) {
+            val speaker = Path().apply {
+                moveTo(size.width * 0.12f, size.height * 0.38f)
+                lineTo(size.width * 0.30f, size.height * 0.38f)
+                lineTo(size.width * 0.52f, size.height * 0.20f)
+                lineTo(size.width * 0.52f, size.height * 0.80f)
+                lineTo(size.width * 0.30f, size.height * 0.62f)
+                lineTo(size.width * 0.12f, size.height * 0.62f)
+                close()
+            }
+            drawPath(path = speaker, color = Color.White)
+
+            if (isMuted) {
+                drawLine(
+                    color = Color.White,
+                    start = androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.34f),
+                    end = androidx.compose.ui.geometry.Offset(size.width * 0.90f, size.height * 0.66f),
+                    strokeWidth = size.width * 0.09f
+                )
+                drawLine(
+                    color = Color.White,
+                    start = androidx.compose.ui.geometry.Offset(size.width * 0.90f, size.height * 0.34f),
+                    end = androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.66f),
+                    strokeWidth = size.width * 0.09f
+                )
+            } else {
+                drawLine(
+                    color = Color.White,
+                    start = androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.38f),
+                    end = androidx.compose.ui.geometry.Offset(size.width * 0.82f, size.height * 0.50f),
+                    strokeWidth = size.width * 0.08f
+                )
+                drawLine(
+                    color = Color.White,
+                    start = androidx.compose.ui.geometry.Offset(size.width * 0.82f, size.height * 0.50f),
+                    end = androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.62f),
+                    strokeWidth = size.width * 0.08f
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoPlayButton(
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.88f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(AppSpacing.VideoPlayIcon)) {
+            if (isPlaying) {
+                val barWidth = size.width * 0.22f
+                val gap = size.width * 0.16f
+                val top = size.height * 0.22f
+                val bottom = size.height * 0.78f
+                val leftStart = (size.width - barWidth * 2 - gap) / 2f
+                drawRect(
+                    color = AppColors.Primary,
+                    topLeft = androidx.compose.ui.geometry.Offset(leftStart, top),
+                    size = androidx.compose.ui.geometry.Size(barWidth, bottom - top)
+                )
+                drawRect(
+                    color = AppColors.Primary,
+                    topLeft = androidx.compose.ui.geometry.Offset(leftStart + barWidth + gap, top),
+                    size = androidx.compose.ui.geometry.Size(barWidth, bottom - top)
+                )
+            } else {
+                val path = Path().apply {
+                    moveTo(size.width * 0.36f, size.height * 0.22f)
+                    lineTo(size.width * 0.36f, size.height * 0.78f)
+                    lineTo(size.width * 0.82f, size.height * 0.5f)
+                    close()
+                }
+                drawPath(path = path, color = AppColors.Primary)
+            }
         }
     }
 }
@@ -1193,7 +1297,7 @@ private fun ImageTextDetailContent(ad: AdItem) {
 @Composable
 private fun VideoDetailContent(ad: AdItem) {
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)) {
-        DetailMediaBlock(ad = ad, height = AppSpacing.VideoMediaHeight)
+        VideoPlayerArea(ad = ad)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1250,6 +1354,69 @@ private fun VideoDetailContent(ad: AdItem) {
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
             )
         }
+    }
+}
+
+@Composable
+private fun VideoPlayerArea(ad: AdItem) {
+    var isPlaying by remember(ad.id) { mutableStateOf(false) }
+    var isMuted by remember(ad.id) { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(AppSpacing.VideoMediaHeight)
+            .clip(AppRadius.Large)
+            .background(mediaColorFor(ad.type))
+            .padding(AppSpacing.Medium)
+    ) {
+        Text(
+            text = ad.mediaLabel,
+            color = AppColors.OnPrimary,
+            style = MaterialTheme.typography.labelLarge
+        )
+        VideoPlayButton(
+            isPlaying = isPlaying,
+            onClick = { isPlaying = !isPlaying },
+            modifier = Modifier
+                .align(Alignment.Center)
+                .size(AppSpacing.PlayButton)
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(end = AppSpacing.VideoMuteButton + AppSpacing.Small),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.Small)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(AppSpacing.VideoProgressHeight)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.35f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.42f)
+                        .height(AppSpacing.VideoProgressHeight)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.9f))
+                )
+            }
+            Text(
+                text = if (isPlaying) "00:12 / 00:30" else "00:00 / 00:30",
+                color = AppColors.OnPrimary,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+        VideoMuteButton(
+            isMuted = isMuted,
+            onClick = { isMuted = !isMuted },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .size(AppSpacing.VideoMuteButton)
+        )
     }
 }
 
