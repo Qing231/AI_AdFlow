@@ -3,6 +3,7 @@ package com.example.aiadflow.ui.feed
 import com.example.aiadflow.data.local.AdLocalInteractionState
 import com.example.aiadflow.data.local.AdLocalStateStore
 import com.example.aiadflow.data.model.Channel
+import com.example.aiadflow.data.repository.AdRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -220,6 +221,33 @@ class AdFeedViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(2, state.clickCount)
         assertEquals(2, state.clickCountsByAdId[ad.id])
+    }
+
+    @Test
+    fun shareAdReturnsShareTextAndTracksShareEvent() {
+        val repository = AdRepository()
+        val viewModel = AdFeedViewModel(repository = repository)
+        val ad = viewModel.uiState.value.ads.first()
+
+        val shareText = viewModel.shareAd(ad.id)
+
+        assertTrue(shareText?.contains(ad.brandName) == true)
+        assertTrue(shareText?.contains(ad.title) == true)
+        assertTrue(shareText?.contains("#${ad.tags.first()}") == true)
+        val event = repository.getTrackedEvents().last()
+        assertEquals(ad.id, event.adId)
+        assertEquals("share", event.eventName)
+    }
+
+    @Test
+    fun shareAdReturnsNullAndDoesNotTrackMissingAdId() {
+        val repository = AdRepository()
+        val viewModel = AdFeedViewModel(repository = repository)
+
+        val shareText = viewModel.shareAd(-1L)
+
+        assertEquals(null, shareText)
+        assertTrue(repository.getTrackedEvents().isEmpty())
     }
 
     @Test

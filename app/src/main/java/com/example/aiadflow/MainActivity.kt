@@ -1,5 +1,6 @@
 package com.example.aiadflow
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -127,6 +128,17 @@ class MainActivity : ComponentActivity() {
                             onRetryLoadMore = viewModel::retryLoadMoreAds,
                             onLikeClick = viewModel::toggleLike,
                             onCollectClick = viewModel::toggleCollect,
+                            onShareClick = { adId ->
+                                viewModel.shareAd(adId)?.let { shareText ->
+                                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "text/plain"
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                    }
+                                    startActivity(
+                                        Intent.createChooser(sendIntent, "\u5206\u4eab\u5e7f\u544a")
+                                    )
+                                }
+                            },
                             onAdClick = { adId ->
                                 viewModel.getAdDetail(adId)?.let { ad ->
                                     viewModel.trackAdClick(ad)
@@ -159,6 +171,7 @@ private fun HomeScreen(
     onRetryLoadMore: () -> Unit,
     onLikeClick: (Long) -> Unit,
     onCollectClick: (Long) -> Unit,
+    onShareClick: (Long) -> Unit,
     onAdClick: (Long) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -271,6 +284,7 @@ private fun HomeScreen(
                         selectedTag = uiState.selectedTag,
                         onLikeClick = { onLikeClick(ad.id) },
                         onCollectClick = { onCollectClick(ad.id) },
+                        onShareClick = { onShareClick(ad.id) },
                         onViewClick = {
                             onAdClick(ad.id)
                         },
@@ -584,6 +598,7 @@ private fun AdCard(
     selectedTag: String?,
     onLikeClick: () -> Unit,
     onCollectClick: () -> Unit,
+    onShareClick: () -> Unit,
     onViewClick: () -> Unit,
     onTagClick: (String) -> Unit
 ) {
@@ -678,6 +693,7 @@ private fun AdCard(
             collected = collected,
             onLikeClick = onLikeClick,
             onCollectClick = onCollectClick,
+            onShareClick = onShareClick,
             onViewClick = onViewClick
         )
     }
@@ -913,6 +929,7 @@ private fun AdActionRow(
     collected: Boolean,
     onLikeClick: () -> Unit,
     onCollectClick: () -> Unit,
+    onShareClick: () -> Unit,
     onViewClick: () -> Unit
 ) {
     Row(
@@ -930,6 +947,11 @@ private fun AdActionRow(
                 text = if (collected) "\u5df2\u6536\u85cf" else "\u6536\u85cf",
                 selected = collected,
                 onClick = onCollectClick
+            )
+            ActionChip(
+                text = "\u5206\u4eab",
+                selected = false,
+                onClick = onShareClick
             )
         }
         ActionChip(
@@ -1203,6 +1225,7 @@ private fun HomeScreenPreview() {
                             collectedOverrides[adId] = !(collectedOverrides[adId] ?: ad.collected)
                         }
                     },
+                    onShareClick = {},
                     onAdClick = { adId ->
                         selectedAd = PreviewAds.firstOrNull { it.id == adId }
                     }

@@ -308,6 +308,26 @@ class AdFeedViewModel(
         }
     }
 
+    /** 生成分享文案并记录分享事件。 */
+    fun shareAd(adId: Long): String? {
+        val ad = repository.getAdById(adId) ?: return null
+
+        track(ad, "share")
+        return buildString {
+            append(ad.brandName)
+            append(" - ")
+            append(ad.title)
+            appendLine()
+            append(ad.summary)
+            if (ad.tags.isNotEmpty()) {
+                appendLine()
+                append(ad.tags.joinToString(separator = " ") { "#$it" })
+            }
+            appendLine()
+            append("来自 AIAdFlow")
+        }
+    }
+
     /** 记录广告曝光事件。 */
     fun trackAdImpression(ad: AdItem) {
         track(ad, "impression")
