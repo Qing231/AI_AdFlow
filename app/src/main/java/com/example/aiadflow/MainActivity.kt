@@ -67,7 +67,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -92,11 +91,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AIAdFlowTheme {
-                if (LocalInspectionMode.current) {
-                    HomeScreenPreviewContent()
-                    return@AIAdFlowTheme
-                }
-
                 val viewModel = remember { AdFeedViewModel() }
                 val uiState by viewModel.uiState.collectAsState()
                 var selectedAd by remember { mutableStateOf<AdItem?>(null) }
@@ -124,7 +118,6 @@ class MainActivity : ComponentActivity() {
                             onClearFilters = viewModel::clearFilters,
                             onCollectedFilterClick = viewModel::toggleCollectedOnly,
                             onRefresh = viewModel::refreshAds,
-                            onAiSummaryRefresh = viewModel::refreshAiSummary,
                             onLoadMore = viewModel::loadMoreAds,
                             onRetryLoadMore = viewModel::retryLoadMoreAds,
                             onLikeClick = viewModel::toggleLike,
@@ -157,7 +150,6 @@ private fun HomeScreen(
     onClearFilters: () -> Unit,
     onCollectedFilterClick: () -> Unit,
     onRefresh: () -> Boolean,
-    onAiSummaryRefresh: () -> Unit,
     onLoadMore: () -> Unit,
     onRetryLoadMore: () -> Unit,
     onLikeClick: (Long) -> Unit,
@@ -257,15 +249,6 @@ private fun HomeScreen(
                         onClearFilters = onClearFilters
                     )
                 }
-            }
-            item(key = "ai-summary") {
-                AiSummaryPanel(
-                    summary = uiState.aiSummary,
-                    adCount = uiState.aiSummaryAdCount,
-                    isLoading = uiState.isAiSummaryLoading,
-                    errorMessage = uiState.aiSummaryErrorMessage,
-                    onRefreshClick = onAiSummaryRefresh
-                )
             }
             if (uiState.ads.isEmpty()) {
                 item(key = "empty-feed") {
@@ -556,64 +539,6 @@ private fun SearchBar(
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun AiSummaryPanel(
-    summary: String,
-    adCount: Int,
-    isLoading: Boolean,
-    errorMessage: String?,
-    onRefreshClick: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(AppRadius.Large)
-            .background(AppColors.Surface)
-            .padding(AppSpacing.Medium),
-        verticalArrangement = Arrangement.spacedBy(AppSpacing.Small)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small)
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "\u0041\u0049 \u6458\u8981",
-                    color = AppColors.TextPrimary,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "\u57fa\u4e8e\u5f53\u524d $adCount \u6761\u5e7f\u544a",
-                    color = AppColors.TextMuted,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            ActionChip(
-                text = if (isLoading) "\u751f\u6210\u4e2d" else "\u5237\u65b0",
-                selected = true,
-                onClick = {
-                    if (!isLoading) {
-                        onRefreshClick()
-                    }
-                }
-            )
-        }
-        Text(
-            text = summary,
-            color = AppColors.TextSecondary,
-            style = MaterialTheme.typography.bodyMedium
-        )
-        if (!errorMessage.isNullOrBlank()) {
-            Text(
-                text = errorMessage,
-                color = AppColors.TextMuted,
-                style = MaterialTheme.typography.labelLarge
-            )
         }
     }
 }
@@ -1182,12 +1107,7 @@ private fun activeFilterLabel(uiState: AdFeedUiState): String {
     heightDp = 844
 )
 @Composable
-fun HomeScreenPreview() {
-    HomeScreenPreviewContent()
-}
-
-@Composable
-private fun HomeScreenPreviewContent() {
+private fun HomeScreenPreview() {
     AIAdFlowTheme {
         var selectedChannel by remember { mutableStateOf<Channel?>(null) }
         var searchText by remember { mutableStateOf("") }
@@ -1244,8 +1164,6 @@ private fun HomeScreenPreviewContent() {
                         collectedOverridesByAdId = collectedOverrides,
                         showCollectedOnly = showCollectedOnly,
                         collectedCount = PreviewAds.count { ad -> collectedOverrides[ad.id] ?: ad.collected },
-                        aiSummary = "\u0041\u0049 \u6458\u8981\uff1a\u5f53\u524d ${visibleAds.size} \u6761\u53ef\u89c1\u5e7f\u544a\u53ef\u8fdb\u884c\u521b\u610f\u590d\u6838\u3002",
-                        aiSummaryAdCount = visibleAds.size,
                         isLoadingMore = false,
                         hasMoreAds = false,
                         loadMoreErrorMessage = null
@@ -1268,7 +1186,6 @@ private fun HomeScreenPreviewContent() {
                     },
                     onCollectedFilterClick = { showCollectedOnly = !showCollectedOnly },
                     onRefresh = { true },
-                    onAiSummaryRefresh = {},
                     onLoadMore = {},
                     onRetryLoadMore = {},
                     onLikeClick = { adId ->
@@ -1297,7 +1214,7 @@ private fun HomeScreenPreviewContent() {
     heightDp = 844
 )
 @Composable
-fun AdDetailScreenPreview() {
+private fun AdDetailScreenPreview() {
     AIAdFlowTheme {
         AdDetailScreen(
             ad = PreviewAds.first(),

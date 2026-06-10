@@ -1,6 +1,9 @@
 package com.example.aiadflow.ui.feed
 
+import com.example.aiadflow.data.local.AdLocalInteractionState
+import com.example.aiadflow.data.local.AdLocalStateStore
 import com.example.aiadflow.data.model.Channel
+import com.example.aiadflow.data.repository.AdRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -187,6 +190,27 @@ class AdFeedViewModelTest {
     }
 
     @Test
+    fun initializesInteractionStateFromLocalStore() {
+        val localStateStore = RecordingAdLocalStateStore(
+            initialState = AdLocalInteractionState(
+                likedOverridesByAdId = mapOf(4L to false),
+                collectedOverridesByAdId = mapOf(
+                    1L to false,
+                    7L to false,
+                    2L to true
+                )
+            )
+        )
+
+        val viewModel = AdFeedViewModel(localStateStore = localStateStore)
+
+        val state = viewModel.uiState.value
+        assertEquals(false, state.likedOverridesByAdId[4L])
+        assertEquals(true, state.collectedOverridesByAdId[2L])
+        assertEquals(1, state.collectedCount)
+    }
+
+    @Test
     fun getAdDetailReturnsAdByIdOutsideCurrentFilters() {
         val viewModel = AdFeedViewModel()
 
@@ -225,6 +249,33 @@ class AdFeedViewModelTest {
     }
 
     @Test
+    fun shareAdReturnsShareTextAndTracksShareEvent() {
+        val repository = AdRepository()
+        val viewModel = AdFeedViewModel(repository = repository)
+        val ad = viewModel.uiState.value.ads.first()
+
+        val shareText = viewModel.shareAd(ad.id)
+
+        assertTrue(shareText?.contains(ad.brandName) == true)
+        assertTrue(shareText?.contains(ad.title) == true)
+        assertTrue(shareText?.contains("#${ad.tags.first()}") == true)
+        val event = repository.getTrackedEvents().last()
+        assertEquals(ad.id, event.adId)
+        assertEquals("share", event.eventName)
+    }
+
+    @Test
+    fun shareAdReturnsNullAndDoesNotTrackMissingAdId() {
+        val repository = AdRepository()
+        val viewModel = AdFeedViewModel(repository = repository)
+
+        val shareText = viewModel.shareAd(-1L)
+
+        assertEquals(null, shareText)
+        assertTrue(repository.getTrackedEvents().isEmpty())
+    }
+
+    @Test
     fun toggleLikeLikesUnlikedAd() {
         val viewModel = AdFeedViewModel()
         val ad = viewModel.uiState.value.ads.first { !it.liked }
@@ -247,6 +298,17 @@ class AdFeedViewModelTest {
     }
 
     @Test
+    fun toggleLikeSavesLocalState() {
+        val localStateStore = RecordingAdLocalStateStore()
+        val viewModel = AdFeedViewModel(localStateStore = localStateStore)
+        val ad = viewModel.uiState.value.ads.first { !it.liked }
+
+        viewModel.toggleLike(ad.id)
+
+        assertEquals(true, localStateStore.savedState?.likedOverridesByAdId?.get(ad.id))
+    }
+
+    @Test
     fun toggleLikeIgnoresMissingAdId() {
         val viewModel = AdFeedViewModel()
         val initialLikedOverrides = viewModel.uiState.value.likedOverridesByAdId
@@ -265,6 +327,17 @@ class AdFeedViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals(true, state.collectedOverridesByAdId[ad.id])
+    }
+
+    @Test
+    fun toggleCollectSavesLocalState() {
+        val localStateStore = RecordingAdLocalStateStore()
+        val viewModel = AdFeedViewModel(localStateStore = localStateStore)
+        val ad = viewModel.uiState.value.ads.first { !it.collected }
+
+        viewModel.toggleCollect(ad.id)
+
+        assertEquals(true, localStateStore.savedState?.collectedOverridesByAdId?.get(ad.id))
     }
 
     @Test
@@ -300,5 +373,18 @@ class AdFeedViewModelTest {
         viewModel.toggleCollect(-1L)
 
         assertSame(initialCollectedOverrides, viewModel.uiState.value.collectedOverridesByAdId)
+    }
+}
+
+private class RecordingAdLocalStateStore(
+    private val initialState: AdLocalInteractionState = AdLocalInteractionState()
+) : AdLocalStateStore {
+    var savedState: AdLocalInteractionState? = null
+        private set
+
+    override fun load(): AdLocalInteractionState = initialState
+
+    override fun save(state: AdLocalInteractionState) {
+        savedState = state
     }
 }
