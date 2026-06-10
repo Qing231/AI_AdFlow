@@ -74,8 +74,6 @@ import androidx.compose.ui.unit.Dp
 import com.example.aiadflow.data.model.AdItem
 import com.example.aiadflow.data.model.AdType
 import com.example.aiadflow.data.model.Channel
-import com.example.aiadflow.data.repository.AdRepository
-import com.example.aiadflow.data.summary.FileBackedAdSummaryDatabase
 import com.example.aiadflow.ui.feed.AdFeedUiState
 import com.example.aiadflow.ui.feed.AdFeedViewModel
 import com.example.aiadflow.ui.theme.AIAdFlowTheme
@@ -93,15 +91,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AIAdFlowTheme {
-                val viewModel = remember {
-                    AdFeedViewModel(
-                        repository = AdRepository(
-                            adSummaryDatabase = FileBackedAdSummaryDatabase(
-                                file = applicationContext.filesDir.resolve("mock_ad_summaries.properties")
-                            )
-                        )
-                    )
-                }
+                val viewModel = remember { AdFeedViewModel() }
                 val uiState by viewModel.uiState.collectAsState()
                 var selectedAd by remember { mutableStateOf<AdItem?>(null) }
 

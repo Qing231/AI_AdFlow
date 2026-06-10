@@ -1,9 +1,7 @@
 package com.example.aiadflow.data.repository
 
 import com.example.aiadflow.data.model.Channel
-import com.example.aiadflow.data.summary.FileBackedAdSummaryDatabase
 import com.example.aiadflow.data.summary.MockAdSummaryDatabase
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -120,6 +118,7 @@ class AdRepositoryTest {
         MockAdSummaryDatabase.clear()
         val firstRepository = AdRepository()
         val secondRepository = AdRepository()
+        firstRepository.clearAdAiSummaryMemoryCache()
 
         firstRepository.saveAdAiSummary(6L, "Generated summary for ad 6")
 
@@ -134,6 +133,7 @@ class AdRepositoryTest {
     fun adAiSummaryFallsBackToDatabaseAfterMemoryCacheIsCleared() {
         MockAdSummaryDatabase.clear()
         val repository = AdRepository()
+        repository.clearAdAiSummaryMemoryCache()
 
         repository.saveAdAiSummary(6L, "Persisted summary for ad 6")
         repository.syncAdAiSummaryCacheToDatabase(listOf(6L))
@@ -147,17 +147,16 @@ class AdRepositoryTest {
     }
 
     @Test
-    fun fileBackedAdSummaryDatabasePersistsAcrossRepositoryRestart() {
-        val file = File.createTempFile("aiadflow-summary", ".properties").apply { delete() }
-        val repository = AdRepository(adSummaryDatabase = FileBackedAdSummaryDatabase(file))
+    fun syncedAdSummaryWritesBackToMockProviderData() {
+        MockAdSummaryDatabase.clear()
+        val repository = AdRepository()
+        repository.clearAdAiSummaryMemoryCache()
 
-        repository.saveAdAiSummary(6L, "File-backed summary for ad 6")
+        repository.saveAdAiSummary(6L, "Mock-provider summary for ad 6")
         repository.syncAdAiSummaryCacheToDatabase(listOf(6L))
         repository.clearAdAiSummaryMemoryCache()
 
-        val restartedRepository = AdRepository(adSummaryDatabase = FileBackedAdSummaryDatabase(file))
-        assertEquals("File-backed summary for ad 6", restartedRepository.getAdAiSummary(6L))
-
-        file.delete()
+        val restartedRepository = AdRepository()
+        assertEquals("Mock-provider summary for ad 6", restartedRepository.getAdAiSummary(6L))
     }
 }

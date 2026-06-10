@@ -7,7 +7,37 @@ import com.example.aiadflow.data.model.Channel
 object MockAdProvider {
     fun channels(): List<Channel> = Channel.entries
 
-    fun ads(): List<AdItem> = requireUniqueIds(
+    fun ads(): List<AdItem> = baseAds
+
+    fun getAiSummary(adId: Long): String? = synchronized(aiSummaryOverridesByAdId) {
+        aiSummaryOverridesByAdId[adId] ?: baseAds.firstOrNull { it.id == adId }?.summary
+    }
+
+    fun getAiSummaries(adIds: Collection<Long>): Map<Long, String> = synchronized(aiSummaryOverridesByAdId) {
+        adIds.mapNotNull { adId -> getAiSummary(adId)?.let { adId to it } }.toMap()
+    }
+
+    fun upsertAiSummary(adId: Long, summary: String) {
+        synchronized(aiSummaryOverridesByAdId) {
+            aiSummaryOverridesByAdId[adId] = summary
+        }
+    }
+
+    fun upsertAiSummaries(summariesByAdId: Map<Long, String>) {
+        synchronized(aiSummaryOverridesByAdId) {
+            aiSummaryOverridesByAdId.putAll(summariesByAdId)
+        }
+    }
+
+    fun clearAiSummaryOverrides() {
+        synchronized(aiSummaryOverridesByAdId) {
+            aiSummaryOverridesByAdId.clear()
+        }
+    }
+
+    private val aiSummaryOverridesByAdId = mutableMapOf<Long, String>()
+
+    private val baseAds: List<AdItem> = requireUniqueIds(
         listOf(
             AdItem(
                 id = 1,
