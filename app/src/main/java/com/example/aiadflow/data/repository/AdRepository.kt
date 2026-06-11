@@ -5,68 +5,49 @@ import com.example.aiadflow.data.model.AdItem
 import com.example.aiadflow.data.model.Channel
 import com.example.aiadflow.data.model.TrackEvent
 import com.example.aiadflow.data.summary.AdSummaryDatabase
+import com.example.aiadflow.data.summary.AdTagDatabase
 import com.example.aiadflow.data.summary.AiSummaryClient
 import com.example.aiadflow.data.summary.MockAdSummaryDatabase
+import com.example.aiadflow.data.summary.MockAdTagDatabase
 
-/**
- * 广告数据仓库。
- *
- * 负责从数据源读取频道和广告，并提供搜索过滤与埋点记录能力。
- */
 class AdRepository(
-    /** 广告数据来源，当前默认使用本地 mock provider。 */
     private val adProvider: MockAdProvider = MockAdProvider,
     private val aiSummaryClient: AiSummaryClient = AiSummaryClient(),
-    private val adSummaryDatabase: AdSummaryDatabase = MockAdSummaryDatabase
+    private val adSummaryDatabase: AdSummaryDatabase = MockAdSummaryDatabase,
+    private val adTagDatabase: AdTagDatabase = MockAdTagDatabase
 ) {
     private companion object {
         val adSummaryCache = mutableMapOf<Long, String>()
+        val adTagCache = mutableMapOf<Long, List<String>>()
     }
 
     private val keywordSeparator = Regex("[\\s,，、]+")
     private val channelCache = mutableMapOf<Channel?, List<AdItem>>()
-
-    /** 内存中的埋点事件列表，便于开发阶段验证点击和曝光行为。 */
     private val trackedEvents = mutableListOf<TrackEvent>()
 
-    /** 获取信息流支持的频道列表。 */
     fun getChannels(): List<Channel> = adProvider.channels()
 
-    /**
-     * 按频道和搜索词获取广告。
-     *
-     * 搜索词会匹配品牌名、标题、摘要和标签。
-     */
     fun getAds(
         channel: Channel? = null,
         query: String = "",
-        selectedTag: String? = null
+        selectedTag: String? = null,
+        aiTagsByAdId: Map<Long, List<String>> = emptyMap()
     ): List<AdItem> {
         val keywords = normalizeKeywords(query)
         val normalizedTag = selectedTag?.trim().orEmpty()
-        val tagAds = getCachedAds(channel).filterByTag(normalizedTag)
+        val tagAds = getCachedAds(channel).filterByTag(normalizedTag, aiTagsByAdId)
 
         if (keywords.isEmpty()) {
             return tagAds
         }
 
-        return tagAds.filter { ad -> ad.matchesKeywords(keywords) }
+        return tagAds.filter { ad ->
+            ad.matchesKeywords(keywords, aiTagsByAdId[ad.id].orEmpty())
+        }
     }
 
     fun getAdById(adId: Long): AdItem? {
         return getCachedAds(null).firstOrNull { it.id == adId }
-    }
-
-    fun getAdAiSummary(adId: Long): String? {
-        synchronized(adSummaryCache) {
-            adSummaryCache[adId]?.let { return it }
-        }
-
-        val persistedSummary = adSummaryDatabase.getSummary(adId) ?: return null
-        synchronized(adSummaryCache) {
-            adSummaryCache[adId] = persistedSummary
-        }
-        return persistedSummary
     }
 
     fun getAdAiSummaries(adIds: Collection<Long>): Map<Long, String> {
@@ -93,6 +74,30 @@ class AdRepository(
         }
     }
 
+    fun getAdAiTags(adIds: Collection<Long>): Map<Long, List<String>> {
+        val cachedTags = synchronized(adTagCache) {
+            adIds.mapNotNull { adId -> adTagCache[adId]?.let { adId to it } }.toMap()
+        }
+        val missingIds = adIds.filterNot { it in cachedTags }
+        if (missingIds.isEmpty()) {
+            return cachedTags
+        }
+
+        val persistedTags = adTagDatabase.getTags(missingIds)
+        if (persistedTags.isNotEmpty()) {
+            synchronized(adTagCache) {
+                adTagCache.putAll(persistedTags)
+            }
+        }
+        return cachedTags + persistedTags
+    }
+
+    fun saveAdAiTags(adId: Long, tags: List<String>) {
+        synchronized(adTagCache) {
+            adTagCache[adId] = tags
+        }
+    }
+
     fun syncAdAiSummaryCacheToDatabase(adIds: Collection<Long>? = null) {
         val summariesToPersist = synchronized(adSummaryCache) {
             if (adIds == null) {
@@ -104,15 +109,30 @@ class AdRepository(
         adSummaryDatabase.upsertSummaries(summariesToPersist)
     }
 
-    fun clearAdAiSummaryMemoryCache() {
-        synchronized(adSummaryCache) {
-            adSummaryCache.clear()
+    fun syncAdAiTagCacheToDatabase(adIds: Collection<Long>? = null) {
+        val tagsToPersist = synchronized(adTagCache) {
+            if (adIds == null) {
+                adTagCache.toMap()
+            } else {
+                adIds.mapNotNull { adId -> adTagCache[adId]?.let { adId to it } }.toMap()
+            }
         }
+        adTagDatabase.upsertTags(tagsToPersist)
     }
 
     suspend fun generateAdAiSummary(ad: AdItem): String {
         return aiSummaryClient.summarize(listOf(ad))
     }
+
+    suspend fun generateAdAiTags(ad: AdItem): List<String> {
+        return aiSummaryClient.generateTags(listOf(ad))
+    }
+
+    fun track(event: TrackEvent) {
+        trackedEvents += event
+    }
+
+    fun getTrackedEvents(): List<TrackEvent> = trackedEvents.toList()
 
     private fun normalizeKeywords(query: String): List<String> {
         return query
@@ -121,21 +141,27 @@ class AdRepository(
             .filter { it.isNotBlank() }
     }
 
-    private fun AdItem.matchesKeywords(keywords: List<String>): Boolean {
+    private fun AdItem.matchesKeywords(
+        keywords: List<String>,
+        aiTags: List<String>
+    ): Boolean {
         return keywords.all { keyword ->
             title.contains(keyword, ignoreCase = true) ||
                 summary.contains(keyword, ignoreCase = true) ||
-                tags.any { it.contains(keyword, ignoreCase = true) }
+                aiTags.any { it.contains(keyword, ignoreCase = true) }
         }
     }
 
-    private fun List<AdItem>.filterByTag(selectedTag: String): List<AdItem> {
+    private fun List<AdItem>.filterByTag(
+        selectedTag: String,
+        aiTagsByAdId: Map<Long, List<String>>
+    ): List<AdItem> {
         if (selectedTag.isBlank()) {
             return this
         }
 
         return filter { ad ->
-            ad.tags.any { it.equals(selectedTag, ignoreCase = true) }
+            aiTagsByAdId[ad.id].orEmpty().any { it.equals(selectedTag, ignoreCase = true) }
         }
     }
 
@@ -152,12 +178,4 @@ class AdRepository(
             }
         }
     }
-
-    /** 记录一条广告行为事件。 */
-    fun track(event: TrackEvent) {
-        trackedEvents += event
-    }
-
-    /** 返回已记录埋点事件的只读副本，避免外部直接修改内部列表。 */
-    fun getTrackedEvents(): List<TrackEvent> = trackedEvents.toList()
 }

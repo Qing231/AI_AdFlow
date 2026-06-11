@@ -164,6 +164,8 @@ class MainActivity : ComponentActivity() {
                     } else {
                         AdDetailScreen(
                             ad = detailAd,
+                            adAiTags = uiState.adAiTagsByAdId[detailAd.id].orEmpty(),
+                            isGeneratingTags = detailAd.id in uiState.generatingAdTagIds,
                             liked = uiState.likedOverridesByAdId[detailAd.id] ?: detailAd.liked,
                             collected = uiState.collectedOverridesByAdId[detailAd.id] ?: detailAd.collected,
                             likeCount = uiState.likeCountsByAdId[detailAd.id] ?: detailAd.effectiveInitialLikeCount(),
@@ -302,6 +304,8 @@ private fun HomeScreen(
                             } else {
                                 "AI 摘要等待生成..."
                             },
+                        adAiTags = uiState.adAiTagsByAdId[ad.id].orEmpty(),
+                        isGeneratingTags = ad.id in uiState.generatingAdTagIds,
                         liked = uiState.likedOverridesByAdId[ad.id] ?: ad.liked,
                         collected = uiState.collectedOverridesByAdId[ad.id] ?: ad.collected,
                         likeCount = uiState.likeCountsByAdId[ad.id] ?: ad.effectiveInitialLikeCount(),
@@ -605,6 +609,8 @@ private fun ActiveFiltersBar(
 private fun AdCard(
     ad: AdItem,
     adAiSummary: String,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean,
     liked: Boolean,
     collected: Boolean,
     likeCount: Int,
@@ -644,6 +650,8 @@ private fun AdCard(
                     AdSummaryContent(
                         ad = ad,
                         adAiSummary = adAiSummary,
+                        adAiTags = adAiTags,
+                        isGeneratingTags = isGeneratingTags,
                         modifier = Modifier.weight(1f),
                         showChannelInline = true,
                         selectedTag = selectedTag,
@@ -662,6 +670,8 @@ private fun AdCard(
                 AdSummaryContent(
                     ad = ad,
                     adAiSummary = adAiSummary,
+                    adAiTags = adAiTags,
+                    isGeneratingTags = isGeneratingTags,
                     selectedTag = selectedTag,
                     onTagClick = onTagClick
                 )
@@ -677,7 +687,8 @@ private fun AdCard(
                 )
                 AiSummaryBlock(summary = adAiSummary)
                 TagRow(
-                    tags = ad.tags,
+                    tags = adAiTags,
+                    isGenerating = isGeneratingTags,
                     selectedTag = selectedTag,
                     onTagClick = onTagClick
                 )
@@ -693,6 +704,8 @@ private fun AdCard(
                 AdSummaryContent(
                     ad = ad,
                     adAiSummary = adAiSummary,
+                    adAiTags = adAiTags,
+                    isGeneratingTags = isGeneratingTags,
                     titleFirst = true,
                     selectedTag = selectedTag,
                     onTagClick = onTagClick
@@ -862,6 +875,8 @@ private fun VideoPlayButton(
 private fun AdSummaryContent(
     ad: AdItem,
     adAiSummary: String,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean,
     modifier: Modifier = Modifier,
     titleFirst: Boolean = false,
     showChannelInline: Boolean = false,
@@ -886,7 +901,8 @@ private fun AdSummaryContent(
         }
         AiSummaryBlock(summary = adAiSummary)
         TagRow(
-            tags = ad.tags,
+            tags = adAiTags,
+            isGenerating = isGeneratingTags,
             selectedTag = selectedTag,
             onTagClick = onTagClick
         )
@@ -1184,6 +1200,7 @@ private fun StarActionIcon(
 @Composable
 private fun TagRow(
     tags: List<String>,
+    isGenerating: Boolean = false,
     selectedTag: String?,
     onTagClick: (String) -> Unit
 ) {
@@ -1193,8 +1210,15 @@ private fun TagRow(
         verticalArrangement = Arrangement.spacedBy(AppSpacing.Small),
         maxLines = 2
     ) {
-        tags.forEach { tag ->
+        val displayTags = if (tags.isEmpty()) {
+            listOf(if (isGenerating) "\u6807\u7b7e\u751f\u6210\u4e2d..." else "\u6682\u65e0\u6807\u7b7e")
+        } else {
+            tags
+        }
+
+        displayTags.forEach { tag ->
             val selected = tag.equals(selectedTag, ignoreCase = true)
+            val enabled = tags.isNotEmpty()
             val backgroundColor by animateColorAsState(
                 targetValue = if (selected) AppColors.Primary else AppColors.PageBackground,
                 label = "tagBackground"
@@ -1216,7 +1240,7 @@ private fun TagRow(
                         color = borderColor,
                         shape = AppRadius.Full
                     )
-                    .clickable { onTagClick(tag) }
+                    .clickable(enabled = enabled) { onTagClick(tag) }
                     .widthIn(max = AppSpacing.TagMaxWidth)
                     .padding(
                         horizontal = AppSpacing.Small,
@@ -1353,6 +1377,17 @@ private fun AdItem.effectiveInitialCollectCount(): Int {
     return collectCount.coerceAtLeast(if (collected) 1 else 0)
 }
 
+private fun tagDisplayText(
+    tags: List<String>,
+    isGenerating: Boolean
+): String {
+    return when {
+        tags.isNotEmpty() -> tags.joinToString(separator = "  ") { "#$it" }
+        isGenerating -> "\u6807\u7b7e\u751f\u6210\u4e2d..."
+        else -> "\u6682\u65e0\u6807\u7b7e"
+    }
+}
+
 private fun previewInteractionCount(
     initialCount: Int,
     initialSelected: Boolean,
@@ -1382,6 +1417,9 @@ private fun HomeScreenPreview() {
         var selectedAd by remember { mutableStateOf<AdItem?>(null) }
         val likedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
         val collectedOverrides = remember { mutableStateMapOf<Long, Boolean>() }
+        val previewAiTagsByAdId = remember {
+            PreviewAds.associate { it.id to it.tags }
+        }
         val visibleAds = PreviewAds
             .filter { selectedChannel == null || it.channel == selectedChannel }
             .filter { ad ->
@@ -1389,11 +1427,11 @@ private fun HomeScreenPreview() {
                 query.isBlank() ||
                     ad.title.contains(query, ignoreCase = true) ||
                     ad.summary.contains(query, ignoreCase = true) ||
-                    ad.tags.any { it.contains(query, ignoreCase = true) }
+                    previewAiTagsByAdId[ad.id].orEmpty().any { it.contains(query, ignoreCase = true) }
             }
             .filter { ad ->
                 selectedTag.isNullOrBlank() ||
-                    ad.tags.any { it.equals(selectedTag, ignoreCase = true) }
+                    previewAiTagsByAdId[ad.id].orEmpty().any { it.equals(selectedTag, ignoreCase = true) }
             }
             .filter { ad ->
                 !showCollectedOnly || (collectedOverrides[ad.id] ?: ad.collected)
@@ -1416,6 +1454,8 @@ private fun HomeScreenPreview() {
             if (ad != null) {
                 AdDetailScreen(
                     ad = ad,
+                    adAiTags = previewAiTagsByAdId[ad.id].orEmpty(),
+                    isGeneratingTags = false,
                     liked = likedOverrides[ad.id] ?: ad.liked,
                     collected = collectedOverrides[ad.id] ?: ad.collected,
                     likeCount = previewInteractionCount(
@@ -1446,6 +1486,7 @@ private fun HomeScreenPreview() {
                         selectedTag = selectedTag,
                         ads = visibleAds,
                         adAiSummariesByAdId = visibleAds.associate { it.id to it.summary },
+                        adAiTagsByAdId = previewAiTagsByAdId,
                         likedOverridesByAdId = likedOverrides,
                         collectedOverridesByAdId = collectedOverrides,
                         likeCountsByAdId = PreviewAds.associate { ad ->
@@ -1518,6 +1559,8 @@ private fun AdDetailScreenPreview() {
     AIAdFlowTheme {
         AdDetailScreen(
             ad = PreviewAds.first(),
+            adAiTags = PreviewAds.first().tags,
+            isGeneratingTags = false,
             liked = PreviewAds.first().liked,
             collected = PreviewAds.first().collected,
             likeCount = PreviewAds.first().effectiveInitialLikeCount(),
@@ -1533,6 +1576,8 @@ private fun AdDetailScreenPreview() {
 @Composable
 private fun AdDetailScreen(
     ad: AdItem,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean,
     liked: Boolean,
     collected: Boolean,
     likeCount: Int,
@@ -1561,9 +1606,21 @@ private fun AdDetailScreen(
             }
             item {
                 when (ad.type) {
-                    AdType.ImageText -> ImageTextDetailContent(ad = ad)
-                    AdType.Video -> VideoDetailContent(ad = ad)
-                    else -> StandardDetailContent(ad = ad)
+                    AdType.ImageText -> ImageTextDetailContent(
+                        ad = ad,
+                        adAiTags = adAiTags,
+                        isGeneratingTags = isGeneratingTags
+                    )
+                    AdType.Video -> VideoDetailContent(
+                        ad = ad,
+                        adAiTags = adAiTags,
+                        isGeneratingTags = isGeneratingTags
+                    )
+                    else -> StandardDetailContent(
+                        ad = ad,
+                        adAiTags = adAiTags,
+                        isGeneratingTags = isGeneratingTags
+                    )
                 }
             }
             item {
@@ -1600,7 +1657,11 @@ private fun AdFeedRefreshContainer(
 }
 
 @Composable
-private fun StandardDetailContent(ad: AdItem) {
+private fun StandardDetailContent(
+    ad: AdItem,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean
+) {
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)) {
         DetailMediaBlock(ad = ad, height = AppSpacing.AdMediaHeight)
         DetailField(label = "\u54c1\u724c\u540d", value = ad.brandName)
@@ -1608,13 +1669,17 @@ private fun StandardDetailContent(ad: AdItem) {
         DetailField(label = "\u0041\u0049 \u6458\u8981", value = ad.summary)
         DetailField(
             label = "\u5e7f\u544a\u6807\u7b7e",
-            value = ad.tags.joinToString(separator = "  ") { "#$it" }
+            value = tagDisplayText(adAiTags, isGeneratingTags)
         )
     }
 }
 
 @Composable
-private fun ImageTextDetailContent(ad: AdItem) {
+private fun ImageTextDetailContent(
+    ad: AdItem,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean
+) {
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)) {
         DetailMediaBlock(ad = ad, height = AppSpacing.ImageTextMediaHeight)
         Column(
@@ -1646,7 +1711,7 @@ private fun ImageTextDetailContent(ad: AdItem) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = ad.tags.joinToString(separator = "  ") { "#$it" },
+                text = tagDisplayText(adAiTags, isGeneratingTags),
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
             )
@@ -1655,7 +1720,11 @@ private fun ImageTextDetailContent(ad: AdItem) {
 }
 
 @Composable
-private fun VideoDetailContent(ad: AdItem) {
+private fun VideoDetailContent(
+    ad: AdItem,
+    adAiTags: List<String>,
+    isGeneratingTags: Boolean
+) {
     Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.Section)) {
         VideoPlayerArea(ad = ad)
         Column(
@@ -1709,7 +1778,7 @@ private fun VideoDetailContent(ad: AdItem) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = ad.tags.joinToString(separator = "  ") { "#$it" },
+                text = tagDisplayText(adAiTags, isGeneratingTags),
                 color = AppColors.TextSecondary,
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium)
             )

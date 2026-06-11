@@ -17,10 +17,8 @@ object MockAdProvider {
         adIds.mapNotNull { adId -> getAiSummary(adId)?.let { adId to it } }.toMap()
     }
 
-    fun upsertAiSummary(adId: Long, summary: String) {
-        synchronized(aiSummaryOverridesByAdId) {
-            aiSummaryOverridesByAdId[adId] = summary
-        }
+    fun getAiTags(adIds: Collection<Long>): Map<Long, List<String>> = synchronized(aiTagOverridesByAdId) {
+        adIds.mapNotNull { adId -> aiTagOverridesByAdId[adId]?.let { adId to it } }.toMap()
     }
 
     fun upsertAiSummaries(summariesByAdId: Map<Long, String>) {
@@ -29,13 +27,14 @@ object MockAdProvider {
         }
     }
 
-    fun clearAiSummaryOverrides() {
-        synchronized(aiSummaryOverridesByAdId) {
-            aiSummaryOverridesByAdId.clear()
+    fun upsertAiTags(tagsByAdId: Map<Long, List<String>>) {
+        synchronized(aiTagOverridesByAdId) {
+            aiTagOverridesByAdId.putAll(tagsByAdId)
         }
     }
 
     private val aiSummaryOverridesByAdId = mutableMapOf<Long, String>()
+    private val aiTagOverridesByAdId = mutableMapOf<Long, List<String>>()
 
     private val baseAds: List<AdItem> = requireUniqueIds(
         listOf(
@@ -47,7 +46,7 @@ object MockAdProvider {
                 title = "Lightweight commuter backpack",
                 summary = "AI predicts strong purchase intent for waterproof laptop bags among weekday commuters.",
                 mediaLabel = "Product hero",
-                tags = listOf("Backpack", "Commute", "Waterproof"),
+                tags = emptyList(),
                 collected = true
             ),
             AdItem(
@@ -60,7 +59,7 @@ object MockAdProvider {
                 mediaLabel = "Video creative",
                 videoUrl = "https://cdn.example.com/ads/runlab-creator-challenge.mp4",
                 coverUrl = "https://cdn.example.com/ads/runlab-creator-challenge-cover.jpg",
-                tags = listOf("Fitness", "Creator", "Trial")
+                tags = emptyList()
             ),
             AdItem(
                 id = 3,
@@ -70,7 +69,7 @@ object MockAdProvider {
                 title = "Cashback benefits onboarding story",
                 summary = "A three-card sequence explains everyday savings before guiding users to compare cashback tiers.",
                 mediaLabel = "Brand visual",
-                tags = listOf("Finance", "Cashback", "Onboarding")
+                tags = emptyList()
             ),
             AdItem(
                 id = 4,
@@ -80,7 +79,7 @@ object MockAdProvider {
                 title = "Noise cancelling earbuds for study",
                 summary = "Balanced sound, long battery life, and a compact case for daily use.",
                 mediaLabel = "Small image",
-                tags = listOf("Digital", "Student", "Budget"),
+                tags = emptyList(),
                 liked = true
             ),
             AdItem(
@@ -91,7 +90,7 @@ object MockAdProvider {
                 title = "Slim phone with strong night photos",
                 summary = "A daily phone focused on battery, portrait mode, and low-light image details.",
                 mediaLabel = "Large image",
-                tags = listOf("Digital", "Deal", "Trend")
+                tags = emptyList()
             ),
             AdItem(
                 id = 6,
@@ -101,7 +100,7 @@ object MockAdProvider {
                 title = "Laptop backpack for work and class",
                 summary = "Clear compartments, water resistant fabric, and a protected laptop sleeve.",
                 mediaLabel = "Image text",
-                tags = listOf("Commute", "Student", "Work"),
+                tags = emptyList(),
                 liked = true
             ),
             AdItem(
@@ -112,7 +111,7 @@ object MockAdProvider {
                 title = "Smart aroma diffuser bundle",
                 summary = "Top-performing copy pairs nighttime relaxation with a limited-time bundle discount.",
                 mediaLabel = "Small image",
-                tags = listOf("Home", "Wellness", "Bundle"),
+                tags = emptyList(),
                 collected = true
             ),
             AdItem(
@@ -125,7 +124,7 @@ object MockAdProvider {
                 mediaLabel = "Video",
                 videoUrl = "https://cdn.example.com/ads/desklite-focused-work.mp4",
                 coverUrl = "https://cdn.example.com/ads/desklite-focused-work-cover.jpg",
-                tags = listOf("Office", "Study", "Lighting")
+                tags = emptyList()
             ),
             AdItem(
                 id = 9,
@@ -135,7 +134,7 @@ object MockAdProvider {
                 title = "Evening bakery discount",
                 summary = "Fresh bread and desserts with a local pickup offer after work.",
                 mediaLabel = "Local offer",
-                tags = listOf("Food", "Local", "Deal")
+                tags = emptyList()
             ),
             AdItem(
                 id = 10,
@@ -147,7 +146,7 @@ object MockAdProvider {
                 mediaLabel = "Video",
                 videoUrl = "https://cdn.example.com/ads/blue-bridge-posture-assessment.mp4",
                 coverUrl = "https://cdn.example.com/ads/blue-bridge-posture-assessment-cover.jpg",
-                tags = listOf("Sports", "Local", "Health")
+                tags = emptyList()
             ),
             AdItem(
                 id = 11,
@@ -157,7 +156,7 @@ object MockAdProvider {
                 title = "Weekday lunch set near the office",
                 summary = "Promote a decision-time lunch bundle to users within three kilometers before noon.",
                 mediaLabel = "Nearby deal",
-                tags = listOf("Dining", "Nearby", "Lunch"),
+                tags = emptyList(),
                 liked = true
             ),
             AdItem(
@@ -168,7 +167,7 @@ object MockAdProvider {
                 title = "Same-day shirt cleaning pickup",
                 summary = "Local service ads emphasize evening pickup, transparent pricing, and first-order savings.",
                 mediaLabel = "Service image",
-                tags = listOf("Service", "Local", "Pickup")
+                tags = emptyList()
             ),
             AdItem(
                 id = 13,
@@ -178,7 +177,7 @@ object MockAdProvider {
                 title = "New compact creator camera launch",
                 summary = "Launch creative should emphasize pocket size, stabilized clips, and quick social publishing.",
                 mediaLabel = "Launch hero",
-                tags = listOf("New", "Creator", "Digital")
+                tags = emptyList()
             ),
             AdItem(
                 id = 14,
@@ -188,7 +187,7 @@ object MockAdProvider {
                 title = "First drop breathable walking shoes",
                 summary = "Early campaign copy connects daily walking comfort with limited first-week colorways.",
                 mediaLabel = "New item",
-                tags = listOf("New", "Sports", "Commute")
+                tags = emptyList()
             ),
             AdItem(
                 id = 15,
@@ -198,7 +197,7 @@ object MockAdProvider {
                 title = "Weekend cashback boost",
                 summary = "AI suggests highlighting groceries, transport, and dining as everyday cashback scenes.",
                 mediaLabel = "Finance card",
-                tags = listOf("Finance", "Cashback", "Dining")
+                tags = emptyList()
             ),
             AdItem(
                 id = 16,
@@ -210,7 +209,7 @@ object MockAdProvider {
                 mediaLabel = "Video",
                 videoUrl = "https://cdn.example.com/ads/mint-ledger-onboarding.mp4",
                 coverUrl = "https://cdn.example.com/ads/mint-ledger-onboarding-cover.jpg",
-                tags = listOf("Finance", "Budget", "Onboarding")
+                tags = emptyList()
             ),
             AdItem(
                 id = 17,
@@ -220,7 +219,7 @@ object MockAdProvider {
                 title = "Morning nutrition subscription",
                 summary = "Best-performing copy connects breakfast routines with simple energy and wellness habits.",
                 mediaLabel = "Health visual",
-                tags = listOf("Health", "Wellness", "Subscription")
+                tags = emptyList()
             ),
             AdItem(
                 id = 18,
@@ -230,7 +229,7 @@ object MockAdProvider {
                 title = "Five-minute office stretch guide",
                 summary = "Promote short breaks to desk workers searching for posture and neck-relief tips.",
                 mediaLabel = "Health image",
-                tags = listOf("Health", "Office", "Wellness")
+                tags = emptyList()
             ),
             AdItem(
                 id = 19,
@@ -240,7 +239,7 @@ object MockAdProvider {
                 title = "Three-day city break package",
                 summary = "AI recommends pairing flexible booking with local food and transit convenience.",
                 mediaLabel = "Travel story",
-                tags = listOf("Travel", "Dining", "Deal")
+                tags = emptyList()
             ),
             AdItem(
                 id = 20,
@@ -252,7 +251,7 @@ object MockAdProvider {
                 mediaLabel = "Video",
                 videoUrl = "https://cdn.example.com/ads/trailgo-weekend-route.mp4",
                 coverUrl = "https://cdn.example.com/ads/trailgo-weekend-route-cover.jpg",
-                tags = listOf("Travel", "Outdoor", "Weekend")
+                tags = emptyList()
             ),
             AdItem(
                 id = 21,
@@ -262,7 +261,7 @@ object MockAdProvider {
                 title = "AI design course trial lesson",
                 summary = "Campaign should highlight portfolio outcomes, guided practice, and a short trial format.",
                 mediaLabel = "Course hero",
-                tags = listOf("Education", "AI", "Creator")
+                tags = emptyList()
             ),
             AdItem(
                 id = 22,
@@ -272,7 +271,7 @@ object MockAdProvider {
                 title = "Daily speaking practice plan",
                 summary = "AI suggests focusing on ten-minute habit formation and confidence in real conversations.",
                 mediaLabel = "Course image",
-                tags = listOf("Education", "Language", "Student")
+                tags = emptyList()
             )
         )
     )

@@ -38,6 +38,8 @@ data class AdFeedUiState(
     val collectedCount: Int = 0,
     val adAiSummariesByAdId: Map<Long, String> = emptyMap(),
     val generatingAdSummaryIds: Set<Long> = emptySet(),
+    val adAiTagsByAdId: Map<Long, List<String>> = emptyMap(),
+    val generatingAdTagIds: Set<Long> = emptySet(),
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
     val hasMoreAds: Boolean = true,
@@ -55,6 +57,7 @@ class AdFeedViewModel(
     }
 
     private val summaryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val tagScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val _uiState = MutableStateFlow(
         run {
@@ -73,6 +76,7 @@ class AdFeedViewModel(
                 },
                 collectedCount = initialAds.count { localState.collectedOverridesByAdId[it.id] ?: it.collected },
                 adAiSummariesByAdId = repository.getAdAiSummaries(initialAds.take(PageSize).map(AdItem::id)),
+                adAiTagsByAdId = repository.getAdAiTags(initialAds.take(PageSize).map(AdItem::id)),
                 hasMoreAds = initialAds.size > PageSize,
                 currentPage = 1
             )
@@ -81,7 +85,7 @@ class AdFeedViewModel(
     val uiState: StateFlow<AdFeedUiState> = _uiState.asStateFlow()
 
     init {
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun switchChannel(channel: Channel?) {
@@ -102,7 +106,7 @@ class AdFeedViewModel(
                 selectedChannel = nextChannel
             )
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun selectChannel(channel: Channel?) {
@@ -118,7 +122,7 @@ class AdFeedViewModel(
                 searchText = text
             )
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun selectTag(tag: String?) {
@@ -137,7 +141,7 @@ class AdFeedViewModel(
                 selectedTag = nextTag
             )
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun clearFilters() {
@@ -152,7 +156,7 @@ class AdFeedViewModel(
                 showCollectedOnly = false
             )
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun toggleCollectedOnly() {
@@ -165,7 +169,7 @@ class AdFeedViewModel(
                 showCollectedOnly = nextShowCollectedOnly
             )
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun refreshAds(): Boolean {
@@ -174,7 +178,8 @@ class AdFeedViewModel(
             val refreshedAds = repository.getAds(
                 current.selectedChannel,
                 current.searchText,
-                current.selectedTag
+                current.selectedTag,
+                current.adAiTagsByAdId
             ).filterCollected(current.showCollectedOnly, current.collectedOverridesByAdId)
             _uiState.update {
                 it.copy(
@@ -187,7 +192,7 @@ class AdFeedViewModel(
                     loadMoreErrorMessage = null
                 )
             }
-            ensureAdSummaries(_uiState.value.ads)
+            ensureAiFields(_uiState.value.ads)
             true
         } catch (_: Exception) {
             _uiState.update {
@@ -225,7 +230,8 @@ class AdFeedViewModel(
                     val allAds = repository.getAds(
                         latest.selectedChannel,
                         latest.searchText,
-                        latest.selectedTag
+                        latest.selectedTag,
+                        latest.adAiTagsByAdId
                     ).filterCollected(latest.showCollectedOnly, latest.collectedOverridesByAdId)
                     val nextAds = allAds.take(nextPage * PageSize)
 
@@ -243,7 +249,7 @@ class AdFeedViewModel(
                     )
                 }
             }
-            ensureAdSummaries(_uiState.value.ads)
+            ensureAiFields(_uiState.value.ads)
         }
     }
 
@@ -292,7 +298,7 @@ class AdFeedViewModel(
             saveLocalState(nextState)
             nextState
         }
-        ensureAdSummaries(_uiState.value.ads)
+        ensureAiFields(_uiState.value.ads)
     }
 
     fun shareAd(adId: Long): String? {
@@ -304,9 +310,10 @@ class AdFeedViewModel(
             append(ad.title)
             append('\n')
             append(ad.summary)
-            if (ad.tags.isNotEmpty()) {
+            val tags = _uiState.value.adAiTagsByAdId[ad.id].orEmpty()
+            if (tags.isNotEmpty()) {
                 append('\n')
-                append(ad.tags.joinToString(separator = " ") { "#$it" })
+                append(tags.joinToString(separator = " ") { "#$it" })
             }
         }
     }
@@ -337,6 +344,7 @@ class AdFeedViewModel(
 
     override fun onCleared() {
         summaryScope.cancel()
+        tagScope.cancel()
         super.onCleared()
     }
 
@@ -377,6 +385,60 @@ class AdFeedViewModel(
                 }
             }
         }
+    }
+
+    private fun ensureAdTags(ads: List<AdItem>) {
+        if (ads.isEmpty()) {
+            return
+        }
+
+        val adIds = ads.map(AdItem::id)
+        val cachedTags = repository.getAdAiTags(adIds)
+        val missingAds = ads.filter { ad ->
+            cachedTags[ad.id].isNullOrEmpty() &&
+                _uiState.value.adAiTagsByAdId[ad.id].isNullOrEmpty() &&
+                ad.id !in _uiState.value.generatingAdTagIds
+        }
+
+        _uiState.update { current ->
+            current.copy(
+                adAiTagsByAdId = current.adAiTagsByAdId + cachedTags,
+                generatingAdTagIds = current.generatingAdTagIds + missingAds.map(AdItem::id)
+            )
+        }
+
+        missingAds.forEach { ad ->
+            tagScope.launch {
+                val tags = try {
+                    repository.generateAdAiTags(ad)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                repository.saveAdAiTags(ad.id, tags)
+                repository.syncAdAiTagCacheToDatabase(listOf(ad.id))
+                _uiState.update { current ->
+                    val nextTagsByAdId = if (tags.isEmpty()) {
+                        current.adAiTagsByAdId
+                    } else {
+                        current.adAiTagsByAdId + (ad.id to tags)
+                    }
+                    val allAds = current.copy(adAiTagsByAdId = nextTagsByAdId)
+                        .filteredAds()
+                    val currentLimit = current.currentPage * PageSize
+                    current.copy(
+                        adAiTagsByAdId = nextTagsByAdId,
+                        generatingAdTagIds = current.generatingAdTagIds - ad.id,
+                        ads = allAds.take(currentLimit),
+                        hasMoreAds = allAds.size > currentLimit
+                    )
+                }
+            }
+        }
+    }
+
+    private fun ensureAiFields(ads: List<AdItem>) {
+        ensureAdSummaries(ads)
+        ensureAdTags(ads)
     }
 
     private fun saveLocalState(state: AdFeedUiState) {
@@ -428,7 +490,7 @@ class AdFeedViewModel(
         showCollectedOnly: Boolean = this.showCollectedOnly,
         collectedOverridesByAdId: Map<Long, Boolean> = this.collectedOverridesByAdId
     ): List<AdItem> {
-        return repository.getAds(channel, query, selectedTag)
+        return repository.getAds(channel, query, selectedTag, adAiTagsByAdId)
             .filterCollected(showCollectedOnly, collectedOverridesByAdId)
     }
 
