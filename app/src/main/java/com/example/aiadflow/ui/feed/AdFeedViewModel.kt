@@ -9,6 +9,7 @@ import com.example.aiadflow.data.model.AdItem
 import com.example.aiadflow.data.model.Channel
 import com.example.aiadflow.data.model.TrackEvent
 import com.example.aiadflow.data.repository.AdRepository
+import com.example.aiadflow.data.search.SemanticSearchResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +27,7 @@ data class AdFeedUiState(
     val selectedChannel: Channel? = null,
     val searchText: String = "",
     val isAiSearchUnderstanding: Boolean = false,
+    val activeAiSearchQuery: String? = null,
     val aiSearchUnderstanding: String = "",
     val aiSearchSuggestedTags: List<String> = emptyList(),
     val aiSearchResultCount: Int = 0,
@@ -123,6 +125,14 @@ class AdFeedViewModel(
                 selectedChannel = nextChannel
             )
         }
+        val activeQuery = _uiState.value.activeAiSearchQuery
+        if (!activeQuery.isNullOrBlank()) {
+            startAiSearch(
+                query = activeQuery,
+                appendConversationReply = false
+            )
+            return
+        }
         ensureAiFields(_uiState.value.ads)
     }
 
@@ -132,23 +142,29 @@ class AdFeedViewModel(
 
     fun updateSearchText(text: String) {
         searchJob?.cancel()
-        applySearch(text, force = true)
-
-        searchJob = viewModelScope.launch {
-            delay(SearchUnderstandingDelayMillis)
-            _uiState.update { current ->
-                if (current.searchText == text) {
-                    current.copy(isAiSearchUnderstanding = false)
-                } else {
-                    current
-                }
-            }
+        if (text.isBlank()) {
+            applySearch(text, force = true)
+            return
         }
+
+        startAiSearch(
+            query = text,
+            appendConversationReply = false,
+            delayMillis = SearchUnderstandingDelayMillis
+        )
     }
 
     fun submitSearch() {
         searchJob?.cancel()
-        applySearch(_uiState.value.searchText)
+        val query = _uiState.value.searchText.trim()
+        if (query.isBlank()) {
+            applySearch("")
+        } else {
+            startAiSearch(
+                query = query,
+                appendConversationReply = false
+            )
+        }
     }
 
     fun updateConversationDraft(text: String) {
@@ -162,38 +178,93 @@ class AdFeedViewModel(
         }
 
         searchJob?.cancel()
-        _uiState.update { current ->
-            val page = current.buildSearchPage(query = query)
-            val resetState = current.pageReset(
-                page = page,
-                searchText = query,
-                isAiSearchUnderstanding = false
-            )
-            resetState.copy(
-                conversationDraft = "",
-                conversationMessages = current.conversationMessages + listOf(
-                    ConversationSearchMessage(
-                        id = nextConversationMessageId(),
-                        text = query,
-                        isUser = true
-                    ),
-                    ConversationSearchMessage(
-                        id = nextConversationMessageId(),
-                        text = buildConversationSearchReply(query, page),
-                        isUser = false
-                    )
-                )
-            )
-        }
-        ensureAiFields(_uiState.value.ads)
+        startAiSearch(
+            query = query,
+            appendConversationReply = true
+        )
     }
 
     fun clearConversation() {
+        searchJob?.cancel()
         _uiState.update {
+            val keepActiveAiSearch = !it.isAiSearchUnderstanding
             it.copy(
                 conversationDraft = "",
-                conversationMessages = emptyList()
+                conversationMessages = emptyList(),
+                isAiSearchUnderstanding = false,
+                activeAiSearchQuery = if (keepActiveAiSearch) it.activeAiSearchQuery else null
             )
+        }
+    }
+
+    private fun startAiSearch(
+        query: String,
+        appendConversationReply: Boolean,
+        delayMillis: Long = 0L
+    ) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            // 空输入直接回退本地搜索，避免保留上一轮 AI 查询状态。
+            applySearch("")
+            return
+        }
+
+        _uiState.update { current ->
+            current.copy(
+                conversationDraft = if (appendConversationReply) "" else current.conversationDraft,
+                searchText = query,
+                isAiSearchUnderstanding = true,
+                activeAiSearchQuery = trimmedQuery,
+                ads = emptyList(),
+                aiSearchUnderstanding = "",
+                aiSearchSuggestedTags = emptyList(),
+                aiSearchResultCount = 0,
+                hasMoreAds = false,
+                currentPage = 1,
+                loadMoreErrorMessage = null,
+                conversationMessages = if (appendConversationReply) {
+                    current.conversationMessages + ConversationSearchMessage(
+                        id = nextConversationMessageId(),
+                        text = trimmedQuery,
+                        isUser = true
+                    )
+                } else {
+                    current.conversationMessages
+                }
+            )
+        }
+
+        searchJob = viewModelScope.launch {
+            if (delayMillis > 0L) {
+                delay(delayMillis)
+            }
+
+            val page = _uiState.value.buildAiSearchPage(query = trimmedQuery)
+            _uiState.update { current ->
+                if (current.searchText.trim() != trimmedQuery || current.activeAiSearchQuery != trimmedQuery) {
+                    return@update current
+                }
+
+                val resetState = current.pageReset(
+                    page = page,
+                    searchText = trimmedQuery,
+                    isAiSearchUnderstanding = false,
+                    activeAiSearchQuery = trimmedQuery
+                )
+                if (appendConversationReply) {
+                    resetState.copy(
+                        conversationDraft = "",
+                        conversationMessages = current.conversationMessages + ConversationSearchMessage(
+                            id = nextConversationMessageId(),
+                            text = buildConversationSearchReply(trimmedQuery, page),
+                            isUser = false
+                        )
+                    )
+                } else {
+                    resetState
+                }
+            }
+            ensureAiFields(_uiState.value.ads)
         }
     }
 
@@ -207,7 +278,8 @@ class AdFeedViewModel(
             current.pageReset(
                 page = page,
                 searchText = query,
-                isAiSearchUnderstanding = false
+                isAiSearchUnderstanding = false,
+                activeAiSearchQuery = null
             )
         }
         ensureAiFields(_uiState.value.ads)
@@ -229,6 +301,14 @@ class AdFeedViewModel(
                 selectedTag = nextTag
             )
         }
+        val activeQuery = _uiState.value.activeAiSearchQuery
+        if (!activeQuery.isNullOrBlank()) {
+            startAiSearch(
+                query = activeQuery,
+                appendConversationReply = false
+            )
+            return
+        }
         ensureAiFields(_uiState.value.ads)
     }
 
@@ -246,7 +326,8 @@ class AdFeedViewModel(
                 selectedChannel = null,
                 searchText = "",
                 selectedTag = null,
-                showCollectedOnly = false
+                showCollectedOnly = false,
+                activeAiSearchQuery = null
             )
         }
         ensureAiFields(_uiState.value.ads)
@@ -262,11 +343,28 @@ class AdFeedViewModel(
                 showCollectedOnly = nextShowCollectedOnly
             )
         }
+        val activeQuery = _uiState.value.activeAiSearchQuery
+        if (!activeQuery.isNullOrBlank()) {
+            startAiSearch(
+                query = activeQuery,
+                appendConversationReply = false
+            )
+            return
+        }
         ensureAiFields(_uiState.value.ads)
     }
 
     fun refreshAds(): Boolean {
         val current = _uiState.value
+        if (!current.activeAiSearchQuery.isNullOrBlank()) {
+            // 当前正在使用 AI 解释时，刷新要保持同一查询语义，不能切回规则搜索。
+            startAiSearch(
+                query = current.activeAiSearchQuery,
+                appendConversationReply = false
+            )
+            return true
+        }
+
         return try {
             val page = current.buildSearchPage(page = 1)
             _uiState.update {
@@ -277,6 +375,7 @@ class AdFeedViewModel(
                     hasMoreAds = page.hasMoreAds,
                     currentPage = 1,
                     isAiSearchUnderstanding = false,
+                    activeAiSearchQuery = null,
                     aiSearchUnderstanding = page.interpretation,
                     aiSearchSuggestedTags = page.suggestedTags,
                     aiSearchResultCount = page.totalCount,
@@ -300,6 +399,7 @@ class AdFeedViewModel(
     fun loadMoreAds() {
         val current = _uiState.value
         if (current.isLoadingMore || !current.hasMoreAds || current.ads.isEmpty() || current.loadMoreErrorMessage != null) {
+            // 这些边界都表示当前不应该继续分页，避免重复请求或空列表翻页。
             return
         }
 
@@ -312,16 +412,27 @@ class AdFeedViewModel(
 
         viewModelScope.launch {
             delay(LoadMoreDelayMillis)
-            _uiState.update { latest ->
-                if (!latest.isLoadingMore) {
-                    return@update latest
+            val latest = _uiState.value
+            if (!latest.isLoadingMore) {
+                return@launch
+            }
+
+            try {
+                val nextPage = latest.currentPage + 1
+                val page = if (latest.activeAiSearchQuery.isNullOrBlank()) {
+                    latest.buildSearchPage(page = nextPage)
+                } else {
+                    latest.buildAiSearchPage(
+                        query = latest.activeAiSearchQuery,
+                        page = nextPage
+                    )
                 }
 
-                try {
-                    val nextPage = latest.currentPage + 1
-                    val page = latest.buildSearchPage(page = nextPage)
-
-                    latest.copy(
+                _uiState.update { current ->
+                    if (!current.isLoadingMore) {
+                        return@update current
+                    }
+                    current.copy(
                         ads = page.ads,
                         currentPage = nextPage,
                         hasMoreAds = page.hasMoreAds,
@@ -331,8 +442,10 @@ class AdFeedViewModel(
                         isLoadingMore = false,
                         loadMoreErrorMessage = null
                     )
-                } catch (_: Exception) {
-                    latest.copy(
+                }
+            } catch (_: Exception) {
+                _uiState.update { current ->
+                    current.copy(
                         isLoadingMore = false,
                         loadMoreErrorMessage = "加载失败，请重试"
                     )
@@ -451,6 +564,7 @@ class AdFeedViewModel(
 
         val adIds = ads.map(AdItem::id)
         val cachedSummaries = repository.getAdAiSummaries(adIds)
+        // 只补齐未缓存且未在生成中的摘要，避免滚动时重复开后台任务。
         val missingAds = ads.filter { ad ->
             cachedSummaries[ad.id].isNullOrBlank() &&
                 _uiState.value.adAiSummariesByAdId[ad.id].isNullOrBlank() &&
@@ -481,6 +595,8 @@ class AdFeedViewModel(
                     )
                     if (current.searchText.isBlank()) {
                         nextState
+                    } else if (!current.activeAiSearchQuery.isNullOrBlank()) {
+                        nextState
                     } else {
                         val page = nextState.buildSearchPage(
                             aiSummariesByAdId = nextSummariesByAdId,
@@ -506,6 +622,7 @@ class AdFeedViewModel(
 
         val adIds = ads.map(AdItem::id)
         val cachedTags = repository.getAdAiTags(adIds)
+        // 智能标签生成失败时允许保留原标签；成功结果会写入缓存和本地数据库。
         val missingAds = ads.filter { ad ->
             cachedTags[ad.id].isNullOrEmpty() &&
                 _uiState.value.adAiTagsByAdId[ad.id].isNullOrEmpty() &&
@@ -538,17 +655,23 @@ class AdFeedViewModel(
                         adAiTagsByAdId = nextTagsByAdId,
                         generatingAdTagIds = current.generatingAdTagIds - ad.id
                     )
-                    val page = nextState.buildSearchPage(
-                        aiTagsByAdId = nextTagsByAdId,
-                        page = current.currentPage
-                    )
-                    nextState.copy(
-                        ads = page.ads,
-                        hasMoreAds = page.hasMoreAds,
-                        aiSearchUnderstanding = page.interpretation,
-                        aiSearchSuggestedTags = page.suggestedTags,
-                        aiSearchResultCount = page.totalCount
-                    )
+                    if (current.searchText.isBlank()) {
+                        nextState
+                    } else if (!current.activeAiSearchQuery.isNullOrBlank()) {
+                        nextState
+                    } else {
+                        val page = nextState.buildSearchPage(
+                            aiTagsByAdId = nextTagsByAdId,
+                            page = current.currentPage
+                        )
+                        nextState.copy(
+                            ads = page.ads,
+                            hasMoreAds = page.hasMoreAds,
+                            aiSearchUnderstanding = page.interpretation,
+                            aiSearchSuggestedTags = page.suggestedTags,
+                            aiSearchResultCount = page.totalCount
+                        )
+                    }
                 }
             }
         }
@@ -586,7 +709,8 @@ class AdFeedViewModel(
         searchText: String = this.searchText,
         selectedTag: String? = this.selectedTag,
         showCollectedOnly: Boolean = this.showCollectedOnly,
-        isAiSearchUnderstanding: Boolean = false
+        isAiSearchUnderstanding: Boolean = false,
+        activeAiSearchQuery: String? = this.activeAiSearchQuery
     ): AdFeedUiState {
         return copy(
             selectedChannel = selectedChannel,
@@ -596,6 +720,7 @@ class AdFeedViewModel(
             ads = page.ads,
             hasMoreAds = page.hasMoreAds,
             isAiSearchUnderstanding = isAiSearchUnderstanding,
+            activeAiSearchQuery = activeAiSearchQuery,
             aiSearchUnderstanding = page.interpretation,
             aiSearchSuggestedTags = page.suggestedTags,
             aiSearchResultCount = page.totalCount,
@@ -622,14 +747,52 @@ class AdFeedViewModel(
             aiTagsByAdId = aiTagsByAdId,
             aiSummariesByAdId = aiSummariesByAdId
         )
-        val filteredAds = result.ads.filterCollected(showCollectedOnly, collectedOverridesByAdId)
+        return result.toSearchPage(
+            showCollectedOnly = showCollectedOnly,
+            collectedOverridesByAdId = collectedOverridesByAdId,
+            page = page
+        )
+    }
+
+    private suspend fun AdFeedUiState.buildAiSearchPage(
+        channel: Channel? = selectedChannel,
+        query: String = searchText,
+        selectedTag: String? = this.selectedTag,
+        showCollectedOnly: Boolean = this.showCollectedOnly,
+        collectedOverridesByAdId: Map<Long, Boolean> = this.collectedOverridesByAdId,
+        aiTagsByAdId: Map<Long, List<String>> = this.adAiTagsByAdId,
+        aiSummariesByAdId: Map<Long, String> = this.adAiSummariesByAdId,
+        page: Int = 1
+    ): SearchPage {
+        val result = repository.searchAdsWithAiUnderstanding(
+            channel = channel,
+            query = query,
+            selectedTag = selectedTag,
+            aiTagsByAdId = aiTagsByAdId,
+            aiSummariesByAdId = aiSummariesByAdId
+        )
+        return result.toSearchPage(
+            showCollectedOnly = showCollectedOnly,
+            collectedOverridesByAdId = collectedOverridesByAdId,
+            page = page
+        )
+    }
+
+    private fun SemanticSearchResult.toSearchPage(
+        showCollectedOnly: Boolean,
+        collectedOverridesByAdId: Map<Long, Boolean>,
+        page: Int
+    ): SearchPage {
+        val filteredAds = ads.filterCollected(showCollectedOnly, collectedOverridesByAdId)
         val limit = page * PageSize
         return SearchPage(
             ads = filteredAds.take(limit),
             totalCount = filteredAds.size,
             hasMoreAds = filteredAds.size > limit,
-            interpretation = result.interpretation,
-            suggestedTags = result.suggestedTags
+            interpretation = interpretation,
+            suggestedTags = suggestedTags,
+            usedAiUnderstanding = usedAiUnderstanding,
+            fallbackReason = fallbackReason
         )
     }
 
@@ -662,17 +825,24 @@ class AdFeedViewModel(
     }
 
     private fun buildConversationSearchReply(query: String, page: SearchPage): String {
-        if (page.totalCount == 0) {
-            return "没有找到和“$query”匹配的广告。可以换成品牌、场景、品类或标签再试一次。"
+        val intent = page.interpretation.takeIf { it.isNotBlank() } ?: query
+        val fallbackPrefix = if (page.fallbackReason == null) {
+            ""
+        } else {
+            "AI 理解暂不可用，已使用本地语义搜索。"
         }
 
-        val intent = page.interpretation.takeIf { it.isNotBlank() } ?: query
+        if (page.totalCount == 0) {
+            return fallbackPrefix + "没有找到和“$intent”匹配的广告。可以换成品牌、场景、品类或标签再试一次。"
+        }
+
         val tags = page.suggestedTags
             .takeIf { it.isNotEmpty() }
             ?.joinToString(separator = " ") { "#$it" }
 
         return buildString {
-            append("已按“")
+            append(fallbackPrefix)
+            append(if (page.usedAiUnderstanding) "AI 已理解为“" else "已按“")
             append(intent)
             append("”为你筛出 ")
             append(page.totalCount)
@@ -690,6 +860,8 @@ class AdFeedViewModel(
         val totalCount: Int,
         val hasMoreAds: Boolean,
         val interpretation: String,
-        val suggestedTags: List<String>
+        val suggestedTags: List<String>,
+        val usedAiUnderstanding: Boolean = false,
+        val fallbackReason: String? = null
     )
 }

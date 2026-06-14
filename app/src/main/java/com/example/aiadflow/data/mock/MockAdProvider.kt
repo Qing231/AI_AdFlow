@@ -1,5 +1,6 @@
 package com.example.aiadflow.data.mock
 
+import com.example.aiadflow.R
 import com.example.aiadflow.data.model.AdItem
 import com.example.aiadflow.data.model.AdType
 import com.example.aiadflow.data.model.Channel
@@ -47,6 +48,17 @@ object MockAdProvider {
 
     private val aiSummaryOverridesByAdId = mutableMapOf<Long, String>()
     private val aiTagOverridesByAdId = mutableMapOf<Long, List<String>>()
+    private val audibleVideoResourceIds = intArrayOf(
+        R.raw.adv2,
+        R.raw.adv3,
+        R.raw.adv4,
+        R.raw.adv5
+    )
+
+    private fun audibleVideoUri(offset: Int): String {
+        val resourceId = audibleVideoResourceIds[offset % audibleVideoResourceIds.size]
+        return "android.resource://com.example.aiadflow/$resourceId"
+    }
 
     private val baseAds: List<AdItem> = requireUniqueIds(
         listOf(
@@ -178,7 +190,7 @@ object MockAdProvider {
                 title = "晨间运动计划",
                 summary = "15 分钟轻运动，开启高效一天。",
                 coverUrl = "https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/853889/853889-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(0),
                 mediaLabel = "健身视频",
                 tags = listOf("视频", "健身")
             ),
@@ -190,7 +202,7 @@ object MockAdProvider {
                 title = "新品穿搭短片",
                 summary = "夏季清爽穿搭灵感。",
                 coverUrl = "https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/853889/853889-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(1),
                 mediaLabel = "穿搭视频",
                 tags = listOf("视频", "电商")
             ),
@@ -202,7 +214,7 @@ object MockAdProvider {
                 title = "手冲咖啡体验课",
                 summary = "学习基础萃取和拉花技巧。",
                 coverUrl = "https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/853889/853889-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(2),
                 mediaLabel = "咖啡视频",
                 tags = listOf("视频", "咖啡")
             ),
@@ -214,7 +226,7 @@ object MockAdProvider {
                 title = "海边度假目的地推荐",
                 summary = "适合周末短途旅行的海岸路线。",
                 coverUrl = "https://images.pexels.com/photos/457882/pexels-photo-457882.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/2169880/2169880-hd_1920_1080_30fps.mp4",
+                videoUrl = audibleVideoUri(3),
                 mediaLabel = "旅行视频",
                 tags = listOf("视频", "旅行")
             ),
@@ -226,7 +238,7 @@ object MockAdProvider {
                 title = "厨房好物展示",
                 summary = "提升做饭效率的小工具合集。",
                 coverUrl = "https://images.pexels.com/photos/699953/pexels-photo-699953.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/3195650/3195650-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(0),
                 mediaLabel = "美食视频",
                 tags = listOf("视频", "厨房")
             ),
@@ -238,7 +250,7 @@ object MockAdProvider {
                 title = "城市夜生活推荐",
                 summary = "餐厅、街区和夜景路线合集。",
                 coverUrl = "https://images.pexels.com/photos/313782/pexels-photo-313782.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/3129957/3129957-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(1),
                 mediaLabel = "城市视频",
                 tags = listOf("视频", "本地")
             ),
@@ -250,7 +262,7 @@ object MockAdProvider {
                 title = "高效办公空间改造",
                 summary = "用简单桌搭提升学习和工作专注度。",
                 coverUrl = "https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/3209828/3209828-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(2),
                 mediaLabel = "办公视频",
                 tags = listOf("视频", "办公")
             ),
@@ -262,7 +274,7 @@ object MockAdProvider {
                 title = "数码产品开箱",
                 summary = "耳机、平板和键盘新品体验。",
                 coverUrl = "https://images.pexels.com/photos/5082579/pexels-photo-5082579.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/3255275/3255275-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(3),
                 mediaLabel = "数码视频",
                 tags = listOf("视频", "数码")
             ),
@@ -274,7 +286,7 @@ object MockAdProvider {
                 title = "本地生鲜配送",
                 summary = "蔬果、肉蛋奶最快当日送达。",
                 coverUrl = "https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/854105/854105-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(0),
                 mediaLabel = "生鲜视频",
                 tags = listOf("视频", "生鲜")
             ),
@@ -286,7 +298,7 @@ object MockAdProvider {
                 title = "周末自驾计划",
                 summary = "精选路线、车辆保养和出行装备。",
                 coverUrl = "https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/2103099/2103099-hd_1920_1080_30fps.mp4",
+                videoUrl = audibleVideoUri(1),
                 mediaLabel = "汽车视频",
                 tags = listOf("视频", "汽车")
             ),
@@ -419,7 +431,7 @@ object MockAdProvider {
                 title = "零基础编程体验课",
                 summary = "通过小项目学习变量、函数、页面开发和接口调用。",
                 coverUrl = "https://images.pexels.com/photos/574071/pexels-photo-574071.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/3255275/3255275-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(2),
                 mediaLabel = "编程视频",
                 tags = listOf("视频", "教育", "编程")
             ),
@@ -431,7 +443,7 @@ object MockAdProvider {
                 title = "15 分钟晨间训练",
                 summary = "低门槛居家运动课程，适合学生党和久坐办公人群。",
                 coverUrl = "https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/853889/853889-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(3),
                 mediaLabel = "健身视频",
                 tags = listOf("视频", "健身")
             ),
@@ -443,7 +455,7 @@ object MockAdProvider {
                 title = "手冲咖啡体验课",
                 summary = "从研磨、水温到萃取时间，学习一杯好咖啡的基础方法。",
                 coverUrl = "https://images.pexels.com/photos/373639/pexels-photo-373639.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/855009/855009-hd_1920_1080_25fps.mp4",
+                videoUrl = audibleVideoUri(0),
                 mediaLabel = "咖啡视频",
                 tags = listOf("视频", "本地", "咖啡")
             ),
@@ -455,7 +467,7 @@ object MockAdProvider {
                 title = "夏季通勤穿搭短片",
                 summary = "基础款也能穿出清爽感，适合上课、实习和日常出门。",
                 coverUrl = "https://images.pexels.com/photos/994523/pexels-photo-994523.jpeg?auto=compress&cs=tinysrgb&w=900",
-                videoUrl = "https://videos.pexels.com/video-files/5700381/5700381-hd_1080_1920_25fps.mp4",
+                videoUrl = audibleVideoUri(1),
                 mediaLabel = "穿搭视频",
                 tags = listOf("视频", "电商", "穿搭")
             )

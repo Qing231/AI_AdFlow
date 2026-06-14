@@ -5,18 +5,14 @@ import com.example.aiadflow.data.model.AdItem
 import com.example.aiadflow.data.model.AdType
 import com.example.aiadflow.data.model.Channel
 import com.example.aiadflow.data.model.TrackEvent
+import com.example.aiadflow.data.search.SemanticSearchResult
+import com.example.aiadflow.data.search.SmartSearchService
 import com.example.aiadflow.data.summary.AdSummaryDatabase
 import com.example.aiadflow.data.summary.AdTagDatabase
 import com.example.aiadflow.data.summary.AiSummaryClient
 import com.example.aiadflow.data.summary.MockAdSummaryDatabase
 import com.example.aiadflow.data.summary.MockAdTagDatabase
-
-data class SemanticSearchResult(
-    val ads: List<AdItem>,
-    val interpretation: String = "",
-    val suggestedTags: List<String> = emptyList(),
-    val expandedTerms: List<String> = emptyList()
-)
+import com.example.aiadflow.data.tag.SmartTagService
 
 class AdRepository(
     private val adProvider: MockAdProvider = MockAdProvider,
@@ -24,6 +20,9 @@ class AdRepository(
     private val adSummaryDatabase: AdSummaryDatabase = MockAdSummaryDatabase,
     private val adTagDatabase: AdTagDatabase = MockAdTagDatabase
 ) {
+    private val smartSearchService = SmartSearchService(aiSummaryClient)
+    private val smartTagService = SmartTagService(aiSummaryClient)
+
     private companion object {
         val adSummaryCache = mutableMapOf<Long, String>()
         val adTagCache = mutableMapOf<Long, List<String>>()
@@ -170,6 +169,37 @@ class AdRepository(
         )
     }
 
+    suspend fun searchAdsWithAiUnderstanding(
+        channel: Channel? = null,
+        query: String = "",
+        selectedTag: String? = null,
+        aiTagsByAdId: Map<Long, List<String>> = emptyMap(),
+        aiSummariesByAdId: Map<Long, String> = emptyMap()
+    ): SemanticSearchResult {
+        val normalizedTag = selectedTag?.trim().orEmpty()
+        val baseAds = getCachedAds(channel).filterByTag(normalizedTag, aiTagsByAdId)
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isBlank()) {
+            return SemanticSearchResult(ads = baseAds)
+        }
+
+        return smartSearchService.search(
+            query = trimmedQuery,
+            baseAds = baseAds,
+            aiTagsByAdId = aiTagsByAdId,
+            aiSummariesByAdId = aiSummariesByAdId,
+            fallback = {
+                searchAds(
+                    channel = channel,
+                    query = query,
+                    selectedTag = selectedTag,
+                    aiTagsByAdId = aiTagsByAdId,
+                    aiSummariesByAdId = aiSummariesByAdId
+                )
+            }
+        )
+    }
+
     fun getAdById(adId: Long): AdItem? = getCachedAds(null).firstOrNull { it.id == adId }
 
     fun getAdAiSummary(adId: Long): String? = getAdAiSummaries(listOf(adId))[adId]
@@ -252,7 +282,7 @@ class AdRepository(
 
     suspend fun generateAdAiSummary(ad: AdItem): String = aiSummaryClient.summarize(listOf(ad))
 
-    suspend fun generateAdAiTags(ad: AdItem): List<String> = aiSummaryClient.generateTags(listOf(ad))
+    suspend fun generateAdAiTags(ad: AdItem): List<String> = smartTagService.generateTags(ad)
 
     fun track(event: TrackEvent) {
         trackedEvents += event
