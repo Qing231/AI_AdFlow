@@ -190,31 +190,61 @@ MVVM
 | Media3             | 视频播放      |
 | ExoPlayer          | 视频播放器     |
 | SharedPreferences  | 本地状态存储    |
-| OpenAI API         | AI摘要与标签生成 |
 
 ---
 
 ## 项目结构
 
 ```text
-app
-├── data
-│   ├── mock
-│   ├── repository
-│   ├── summary
-│   └── local
-│
-├── ui
-│   ├── feed
-│   ├── detail
-│   ├── components
-│   └── theme
-│
-├── model
-│
-├── MainActivity.kt
-│
-└── BuildConfig
+ C:\AndroidProjects
+  ├─ settings.gradle.kts
+  ├─ build.gradle.kts
+  ├─ gradle.properties
+  ├─ gradlew / gradlew.bat
+  ├─ gradle/
+  │  ├─ libs.versions.toml
+  │  └─ wrapper/
+  ├─ docs/
+  ├─ app/
+  │  ├─ build.gradle.kts
+  │  ├─ proguard-rules.pro
+  │  └─ src/
+  │     ├─ main/
+  │     │  ├─ AndroidManifest.xml
+  │     │  ├─ java/com/example/aiadflow/
+  │     │  │  ├─ MainActivity.kt
+  │     │  │  ├─ data/
+  │     │  │  │  ├─ local/        本地点赞/收藏状态持久化
+  │     │  │  │  ├─ mock/         Mock 广告数据
+  │     │  │  │  ├─ model/        AdItem、Channel、AdType 等模型
+  │     │  │  │  ├─ repository/   广告数据仓库
+  │     │  │  │  ├─ search/       智能搜索
+  │     │  │  │  ├─ summary/      AI 摘要
+  │     │  │  │  └─ tag/          智能标签
+  │     │  │  └─ ui/
+  │     │  │     ├─ card/         广告卡片
+  │     │  │     ├─ channel/      频道
+  │     │  │     ├─ common/       通用 UI/样式辅助
+  │     │  │     ├─ detail/       详情页
+  │     │  │     ├─ feed/         首页 ViewModel
+  │     │  │     ├─ home/         首页
+  │     │  │     ├─ interaction/  点赞、分享、收藏交互
+  │     │  │     ├─ load/         拖动加载/加载状态
+  │     │  │     ├─ media/        图片/视频播放器、缓存
+  │     │  │     ├─ search/       搜索栏
+  │     │  │     ├─ summary/      AI 摘要 UI
+  │     │  │     ├─ tag/          标签 UI
+  │     │  │     ├─ theme/        主题、颜色、尺寸
+  │     │  │     └─ video/        视频入口封装
+  │     │  └─ res/
+  │     │     ├─ raw/             adv1.mp4 ~ adv5.mp4
+  │     │     ├─ drawable/
+  │     │     ├─ mipmap-*/
+  │     │     ├─ values/
+  │     │     └─ xml/
+  │     ├─ test/
+  │     └─ androidTest/
+
 ```
 
 ---
