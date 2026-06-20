@@ -1,6 +1,21 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun localStringProperty(name: String, fallback: String = ""): String {
+    return localProperties.getProperty(name)
+        ?: localProperties.getProperty("DASHSCOPE_API_KEY").takeIf { name == "AI_SUMMARY_API_KEY" }
+        ?: fallback
 }
 
 android {
@@ -19,6 +34,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "AI_SUMMARY_API_KEY", "\"${localStringProperty("AI_SUMMARY_API_KEY")}\"")
+        buildConfigField(
+            "String",
+            "AI_SUMMARY_ENDPOINT",
+            "\"${localStringProperty("AI_SUMMARY_ENDPOINT", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")}\""
+        )
+        buildConfigField("String", "AI_SUMMARY_MODEL", "\"${localStringProperty("AI_SUMMARY_MODEL", "qwen-plus")}\"")
     }
 
     buildTypes {
@@ -36,6 +58,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -49,6 +72,11 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.database)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
